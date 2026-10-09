@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+<url><loc>https://www.livemint.com/market/stock-market-news/sensex-nifty-today-11760000000001.html</loc>
+<news:news><news:publication><news:name>Mint</news:name><news:language>en</news:language></news:publication><news:publication_date>2026-10-09T10:00:00+05:30</news:publication_date><news:title>Sensex, Nifty end higher for third day</news:title><news:keywords>Markets, Sensex</news:keywords></news:news>
+<image:image><image:loc>https://www.livemint.com/lm-img/sensex.jpg</image:loc></image:image></url>
+<url><loc>https://www.livemint.com/money/personal-finance/how-to-save-tax-this-year-11760000000002.html</loc>
+<news:news><news:publication><news:name>Mint</news:name><news:language>en</news:language></news:publication><news:publication_date>2026-10-09T11:00:00+05:30</news:publication_date><news:title>How to save tax this year</news:title></news:news></url>
+<url><loc>https://www.livemint.com/companies/news/tata-motors-q2-sales-rise-11760000000003.html</loc><lastmod>2026-10-09T09:00:00+05:30</lastmod></url>
+<url><loc>https://www.livemint.com/topic/sensex</loc><lastmod>2026-10-09T09:00:00+05:30</lastmod></url>
+<url><loc>https://www.livemint.com/politics/news/election-dates-announced-for-five-states-11760000000004.html</loc>
+<news:news><news:publication><news:name>Mint</news:name></news:publication><news:publication_date>2026-10-09T08:00:00+05:30</news:publication_date><news:title>Election dates announced for five states</news:title></news:news></url>
+<url><loc>https://www.livemint.com/technology/tech-news/new-ai-rules-notified-11760000000005.html</loc>
+<news:news><news:publication><news:name>Mint</news:name></news:publication><news:publication_date>2026-10-09T07:00:00+05:30</news:publication_date><news:title>Government notifies new AI rules</news:title></news:news></url>
+</urlset>

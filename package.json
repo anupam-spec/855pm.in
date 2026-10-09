@@ -1,0 +1,26 @@
+{
+  "name": "855pm-newsletter-builder",
+  "version": "1.0.0",
+  "description": "Turn any publisher RSS feed or website URL into ready-to-send newsletters.",
+  "main": "src/feed.js",
+  "type": "commonjs",
+  "bin": {
+    "855pm-feed": "bin/feed.js"
+  },
+  "scripts": {
+    "feed": "node bin/feed.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "fast-xml-parser": "^5.11.2"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

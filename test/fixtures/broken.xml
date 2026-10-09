@@ -1,0 +1,7 @@
+﻿
+Warning: Undefined variable $x in /var/www/feed.php on line 3
+<?xml version="1.0"?>
+<rss version="2.0"><channel><title>Broken & Co</title><link>https://broken.example/</link>
+<item><title>Tom & Jerry return</title><link>https://broken.example/a/tom-and-jerry-return</link><description>Fun &nbsp; times &hellip;</description><pubDate>not a date</pubDate></item>
+<item><title>Second</title><link>https://broken.example/b</link><guid>https://broken.example/b</guid>
+</channel></rss>

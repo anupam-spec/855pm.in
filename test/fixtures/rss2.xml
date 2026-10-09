@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title><![CDATA[India Today | Home]]></title>
+<link>https://www.indiatoday.in</link>
+<atom:link href="https://www.indiatoday.in/rss/home" rel="self" type="application/rss+xml"/>
+<description>Latest news</description>
+<language>en</language>
+<image><url>https://akm-img-a-in.tosshub.com/sites/rss/logo.png</url><title>India Today</title><link>https://www.indiatoday.in</link></image>
+<item>
+<title><![CDATA[Sensex jumps 500 points as banks rally & IT stocks gain]]></title>
+<link>https://www.indiatoday.in/business/story/sensex-jumps-500-points-2601234-2026-10-09?utm_source=rss</link>
+<description><![CDATA[<a href="https://www.indiatoday.in/x"><img src="https://akm-img-a-in.tosshub.com/a.jpg" /></a> Markets closed higher on Thursday &amp; banks led.]]></description>
+<pubDate>Thu, 09 Oct 2026 10:15:00 +0530</pubDate>
+<dc:creator>Business Desk</dc:creator>
+<category>Business</category>
+</item>
+<item>
+<title>Monsoon exits early</title>
+<link>https://www.indiatoday.in/india/story/monsoon-exits-early-2601235-2026-10-09</link>
+<description>IMD says the monsoon has withdrawn from most of the country.</description>
+<media:content url="https://akm-img-a-in.tosshub.com/small.jpg" width="100" medium="image"/>
+<media:content url="https://akm-img-a-in.tosshub.com/big.jpg" width="1200" medium="image"/>
+<pubDate>Thu, 09 Oct 2026 09:00:00 +0530</pubDate>
+</item>
+</channel>
+</rss>
