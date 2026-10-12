@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { parseFeed, parseSitemap, buildRss, looksLikeFeed, resolveSource, titleFromSlug } = require('../src/feed');
+const { extractArticlesFromHtml } = require('../src/extract');
 
 const fx = (name) => fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
 
@@ -110,11 +111,12 @@ async function site(routes) {
       return res.end('<html><body>Not found</body></html>');
     }
     res.writeHead(r.status || 200, { 'content-type': r.type });
-    res.end(r.body);
+    res.end(typeof r.body === 'function' ? r.body(base) : r.body);
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   servers.push(server);
-  return `http://127.0.0.1:${server.address().port}`;
+  const base = `http://127.0.0.1:${server.address().port}`;
+  return base;
 }
 after(() => servers.forEach((s) => s.close()));
 
@@ -171,6 +173,52 @@ test('site without any feed: scrapes articles, enriches them, generates RSS', as
   assert.equal(r.articles[1].author, 'Staff Reporter');
   const regenerated = parseFeed(r.rss, url);
   assert.equal(regenerated.items.length, 6);
+});
+
+test('feed without images takes them from the article pages', async () => {
+  const url = await site({
+    '/feed': {
+      type: XML,
+      body: (base) =>
+        buildRss({
+          publication: { name: 'No Pics', url: base },
+          articles: [{ title: 'Parliament passes new data protection bill', link: `${base}/politics/2026/10/09/bill-1012345.html`, pubDate: '2026-10-09T04:45:00Z' }],
+        }),
+    },
+    '/politics/2026/10/09/bill-1012345.html': { type: HTML, body: fx('article.html') },
+  });
+  const r = await resolveSource(`${url}/feed`);
+  assert.equal(r.source, 'feed');
+  assert.equal(r.articles[0].image, `${url}/img/og.jpg`);
+});
+
+test('RSS index page (/rss) is followed to the feeds it lists', async () => {
+  const url = await site({
+    '/': { type: HTML, body: '<html><head><title>Mint-like</title></head><body>hi</body></html>' },
+    '/rss': {
+      type: HTML,
+      body: (base) =>
+        `<html><body><a href="/rss">RSS</a><a href="/feedback.cms">Feedback</a><a href="http://add.my.yahoo.com/rss?url=${base}/rss/news">Add news</a><a href="/rss/sports">Sports</a></body></html>`,
+    },
+    '/rss/news': { type: XML, body: fx('rss2.xml') },
+  });
+  const r = await resolveSource(url);
+  assert.equal(r.source, 'feed');
+  assert.equal(r.feedUrl, `${url}/rss/news`);
+});
+
+test('scraped titles do not glue section labels or summaries to the headline', () => {
+  const html = `<html><body><main>
+    <a href="/real-estate/news/texas-home-ranked-third-haunted/articleshow/134881716.cms"><div><section><div>Real Estate</div></section>1861 Texas home ranks third among haunted spots</div></a>
+    <a href="/news/articles/cjn5v21py07vo-trump-diesel-russia"><div><h2>Trump faces backlash over diesel from Russia</h2><p>Both Republicans and Democrats criticised the plan.</p></div></a>
+    <a href="/news/2026/10/12/nepal-flash-flood-1234"><span>LIVE</span><span>Fresh Nepal flash flood washes away houses</span></a>
+  </main></body></html>`;
+  const titles = extractArticlesFromHtml(html, 'https://example.com/').map((a) => a.title);
+  assert.deepEqual(titles.sort(), [
+    '1861 Texas home ranks third among haunted spots',
+    'LIVE Fresh Nepal flash flood washes away houses',
+    'Trump faces backlash over diesel from Russia',
+  ]);
 });
 
 test('Cloudflare-blocked homepage falls back to the news sitemap from robots.txt', async () => {

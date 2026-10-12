@@ -280,6 +280,12 @@ ${items}
 
 // Common feed locations, tried when a page advertises no feed.
 const FEED_PATHS = ['/feed', '/rss', '/rss.xml', '/feed.xml', '/atom.xml', '/index.xml', '/feeds/posts/default', '/?feed=rss2', '/rss/home', '/rssfeeds'];
+// Publishers whose feeds live on another host and are not linked from the site.
+const KNOWN_FEEDS = {
+  'bbc.com': ['https://feeds.bbci.co.uk/news/rss.xml'],
+  'bbc.co.uk': ['https://feeds.bbci.co.uk/news/rss.xml'],
+  'timesofindia.indiatimes.com': ['https://timesofindia.indiatimes.com/rssfeedstopstories.cms'],
+};
 const SITEMAP_PATHS = ['/news-sitemap.xml', '/sitemap_news.xml', '/sitemap-news.xml', '/news_sitemap.xml', '/sitemap.xml'];
 const MIN_ARTICLES = 5;
 
@@ -299,10 +305,21 @@ function titleFromSlug(link) {
   }
 }
 
+function knownFeedsFor(pageUrl) {
+  const host = hostnameOf(pageUrl).replace(/^www\./, '');
+  const key = Object.keys(KNOWN_FEEDS).find((h) => host === h || host.endsWith('.' + h));
+  return key ? KNOWN_FEEDS[key] : [];
+}
+
 /** Fetch one URL as a feed. Resolves to the parsed feed, or throws. */
 async function fetchFeed(url, opts = {}) {
   const res = await fetchText(url, { accept: FEED_ACCEPT, retries: 1, ...opts });
-  if (!looksLikeFeed(res.text, res.contentType)) throw new Error(`Not a feed: ${url}`);
+  if (!looksLikeFeed(res.text, res.contentType)) {
+    const err = new Error(`Not a feed: ${url}`);
+    // An HTML "RSS feeds" index page: keep it so its feed links can be tried.
+    if (/<html|<a\s/i.test(res.text)) err.page = { url: res.url, text: res.text };
+    throw err;
+  }
   const feed = parseFeed(res.text, res.url);
   feed.items = dedupeArticles(feed.items);
   if (!feed.items.length) throw new Error(`Feed has no items: ${url}`);
@@ -310,7 +327,7 @@ async function fetchFeed(url, opts = {}) {
 }
 
 /** Try candidate feed URLs in order (a few at a time); first usable feed wins. */
-async function firstWorkingFeed(urls, log, opts) {
+async function firstWorkingFeed(urls, log, opts, directories = []) {
   const unique = [...new Set(urls.filter(Boolean))];
   for (let i = 0; i < unique.length; i += 4) {
     const batch = unique.slice(i, i + 4);
@@ -318,7 +335,7 @@ async function firstWorkingFeed(urls, log, opts) {
       batch.map((u) =>
         fetchFeed(u, opts).then(
           (f) => (log.push({ step: 'feed', url: u, ok: true, items: f.items.length }), f),
-          (e) => (log.push({ step: 'feed', url: u, ok: false, error: e.message }), null)
+          (e) => (log.push({ step: 'feed', url: u, ok: false, error: e.message }), e.page && /rss|feed/i.test(u) && directories.push(e.page), null)
         )
       )
     );
@@ -401,7 +418,7 @@ async function resolveSource(input, { limit = 25, enrich = true, fetchOptions = 
     try {
       const feed = parseFeed(page.text, page.url);
       feed.items = dedupeArticles(feed.items);
-      if (feed.items.length) return finish('feed', publicationFromFeed(feed, page.url), feed.items, page.url);
+      if (feed.items.length) return finish('feed', publicationFromFeed(feed, page.url), await enrichFeedItems(feed.items), page.url);
     } catch (e) {
       attempts.push({ step: 'parse', url: page.url, ok: false, error: e.message });
     }
@@ -425,10 +442,16 @@ async function resolveSource(input, { limit = 25, enrich = true, fetchOptions = 
   // 2. Feeds the page advertises, then 3. well-known feed paths.
   const advertised = $ ? extract.extractFeedLinks($, baseUrl) : [];
   const guessed = FEED_PATHS.map((p) => new URL(p, siteRoot).toString());
-  const feed = await firstWorkingFeed([...advertised.slice(0, 6), ...guessed], attempts, opts);
+  const directories = [];
+  let feed = await firstWorkingFeed([...knownFeedsFor(baseUrl), ...advertised.slice(0, 6), ...guessed], attempts, opts, directories);
+  // 3b. Pages like /rss or /rss.cms that list the site's feeds.
+  if (!feed && directories.length) {
+    const listed = directories.flatMap((d) => extract.feedsFromDirectory(d.text, d.url));
+    feed = await firstWorkingFeed(listed.slice(0, 8), attempts, opts);
+  }
   if (feed) {
     const fromFeed = publicationFromFeed(feed, baseUrl);
-    return finish('feed', { ...fromFeed, ...pick(publication, ['logo', 'favicon', 'themeColor']), name: publication.name || fromFeed.name }, feed.items, feed.feedUrl);
+    return finish('feed', { ...fromFeed, ...pick(publication, ['logo', 'favicon', 'themeColor']), name: publication.name || fromFeed.name }, await enrichFeedItems(feed.items), feed.feedUrl);
   }
 
   // 4. Scrape the page.
@@ -494,6 +517,15 @@ async function resolveSource(input, { limit = 25, enrich = true, fetchOptions = 
     await enrichArticles(articles, opts).catch(() => {});
   }
   return finish(source, publication, articles, '');
+
+  // Some feeds (TechCrunch, NDTV) ship no images; take them from the article pages.
+  async function enrichFeedItems(items) {
+    const list = dedupeArticles(items).slice(0, limit);
+    if (enrich && list.some((a) => !a.image)) {
+      await enrichArticles(list, { ...opts, limit, concurrency: 6 }).catch(() => {});
+    }
+    return list;
+  }
 
   function finish(src, pub, items, feedUrl) {
     const list = dedupeArticles(items).slice(0, limit);

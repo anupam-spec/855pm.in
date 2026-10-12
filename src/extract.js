@@ -97,6 +97,32 @@ function extractFeedLinks($, pageUrl) {
   return [...new Set(links.filter(Boolean))];
 }
 
+/**
+ * Feed URLs listed on an "RSS feeds" index page (e.g. /rss, /rss.cms), most
+ * general first. Unwraps "add to reader" links like ...?url=<feed>.
+ */
+function feedsFromDirectory(html, pageUrl) {
+  const $ = typeof html === 'string' ? cheerio.load(html) : html;
+  const self = pageUrl.replace(/[#?].*$/, '').replace(/\/$/, '');
+  const links = new Set();
+  $('a[href], link[rel~="alternate"][href]').each((_, el) => {
+    let href = absolutize($(el).attr('href'), pageUrl);
+    if (!href) return;
+    try {
+      const wrapped = new URL(href).searchParams.get('url');
+      if (wrapped && /^https?:\/\//i.test(wrapped)) href = wrapped;
+    } catch {
+      return;
+    }
+    href = href.replace(/#.*$/, '');
+    if (!/(rss|feed|atom|\.xml)/i.test(href) || /(sitemap|feedback)/i.test(href)) return;
+    if (href.replace(/\/$/, '') === self || !sameSite(href, hostnameOf(pageUrl))) return;
+    links.add(href);
+  });
+  const rank = (u) => (/(top|home|latest|main|default|news|recent)/i.test(u) ? 0 : 1);
+  return [...links].sort((a, b) => rank(a) - rank(b));
+}
+
 function bestImgSrc($, img) {
   const $img = $(img);
   const srcset = $img.attr('data-srcset') || $img.attr('srcset') || '';
@@ -132,6 +158,37 @@ function sameSite(link, baseHost) {
   if (!h) return false;
   const root = (x) => x.split('.').slice(-2).join('.');
   return h === baseHost || h.endsWith('.' + baseHost) || root(h) === root(baseHost);
+}
+
+const BLOCK_TAGS = /^(div|section|p|h[1-6]|li|ul|ol|figure|figcaption|header|footer|article|aside|time|br)$/i;
+
+/**
+ * Headline text of a teaser anchor. Card anchors often wrap a section label,
+ * the headline and a summary in separate elements; .text() would glue them
+ * together ("Real Estate1861 Texas home...").
+ */
+function anchorText($, a) {
+  const $a = $(a);
+  const heading = cleanText($a.find('h1,h2,h3,h4,h5,h6,[class*="headline" i],[data-testid*="headline" i]').first().text());
+  if (heading.length >= 20) return heading;
+  const blocks = new Map();
+  const walk = (node, block) => {
+    for (const c of node.children || []) {
+      if (c.type === 'text') {
+        const prev = blocks.get(block) || '';
+        const t = c.data || '';
+        // Adjacent inline elements with no whitespace: "LIVE" + "Fresh flood..."
+        const gap = /[A-Za-z0-9]$/.test(prev) && /^[A-Z0-9]/.test(t) ? ' ' : '';
+        blocks.set(block, prev + gap + t);
+      } else if (c.type === 'tag' && !/^(script|style|noscript|svg)$/i.test(c.name)) {
+        walk(c, BLOCK_TAGS.test(c.name) ? c : block);
+      }
+    }
+  };
+  walk(a, a);
+  const pieces = [...blocks.values()].map(cleanText).filter(Boolean);
+  if (pieces.length <= 1) return pieces[0] || '';
+  return pieces.find((p) => p.length >= 20 && p.split(/\s+/).length >= 4) || pieces.join(' ');
 }
 
 function scoreLink(link, text, $a) {
@@ -202,7 +259,7 @@ function extractArticlesFromHtml(html, pageUrl, { limit = 25 } = {}) {
     const $a = $(el);
     const link = absolutize($a.attr('href'), pageUrl);
     if (!link || !sameSite(link, baseHost) || SOCIAL_HOSTS.test(hostnameOf(link))) return;
-    let text = cleanText($a.attr('title') && $a.text().trim().length < 15 ? $a.attr('title') : $a.text());
+    let text = cleanText($a.attr('title') && $a.text().trim().length < 15 ? $a.attr('title') : anchorText($, el));
     if (!text) text = cleanText($a.find('img').attr('alt'));
     const score = scoreLink(link, text, $a);
     const prev = byLink.get(link);
@@ -296,4 +353,4 @@ function pageDigestForLlm(html, pageUrl, maxChars = 14000) {
   return [...new Set(lines)].join('\n').slice(0, maxChars);
 }
 
-module.exports = { looksLikeArticleUrl, extractPublication, extractFeedLinks, extractArticlesFromHtml, extractArticleMeta, pageDigestForLlm, jsonLdBlocks };
+module.exports = { looksLikeArticleUrl, extractPublication, extractFeedLinks, feedsFromDirectory, anchorText, extractArticlesFromHtml, extractArticleMeta, pageDigestForLlm, jsonLdBlocks };

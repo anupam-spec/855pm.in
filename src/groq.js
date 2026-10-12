@@ -5,6 +5,8 @@
  * depends on the LLM to produce a newsletter.
  */
 
+const { httpFetch } = require('./fetcher');
+
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const enabled = () => Boolean(process.env.GROQ_API_KEY);
@@ -15,7 +17,7 @@ async function chatJson(system, user, { maxTokens = 2048, timeout = 30000 } = {}
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeout);
   try {
-    const res = await fetch(GROQ_URL, {
+    const res = await httpFetch(GROQ_URL, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },

@@ -7,11 +7,13 @@ Turns a publisher's RSS feed or plain website URL into structured articles (and 
 `resolveSource(url)` in `src/feed.js` tries, in order:
 
 1. The URL itself as a feed (RSS 2.0, RSS 1.0/RDF, Atom, JSON Feed; broken XML is repaired or parsed loosely).
-2. Feeds the page advertises (`<link rel="alternate">`, RSS links).
-3. Common feed paths (`/feed`, `/rss`, `/rss.xml`, `/atom.xml`, ...).
+2. Feeds the page advertises (`<link rel="alternate">`, RSS links), plus known off-site feeds (BBC, TOI).
+3. Common feed paths (`/feed`, `/rss`, `/rss.xml`, `/atom.xml`, ...); an HTML "RSS feeds" index page found there is followed to the feeds it lists.
 4. Scraping the page (JSON-LD plus DOM heuristics), re-rendered in headless Chromium if blocked or thin.
 5. News sitemaps from `robots.txt` and well-known paths.
 6. Groq, when `GROQ_API_KEY` is set.
+
+Feed items without images are filled from the article pages' Open Graph tags.
 
 It returns `{ source, publication, articles, feedUrl, rss, attempts }`; `rss` is generated RSS 2.0 for sites with no feed of their own.
 
@@ -23,4 +25,4 @@ node bin/feed.js example.com --rss out.xml        # write generated RSS
 npm test
 ```
 
-Environment: `GROQ_API_KEY`, `GROQ_MODEL`, `FETCH_TIMEOUT_MS`, `DISABLE_HEADLESS=1`, `CHROMIUM_PATH`.
+Environment: `GROQ_API_KEY`, `GROQ_MODEL`, `FETCH_TIMEOUT_MS`, `DISABLE_HEADLESS=1`, `CHROMIUM_PATH`. Requests honour `HTTPS_PROXY` / `NO_PROXY`.
