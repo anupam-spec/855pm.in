@@ -9,7 +9,20 @@
  *   captchas, "Access denied" pages) so callers can switch strategy.
  * - Optional headless Chromium fallback (Playwright) for JS-rendered or
  *   challenge-protected pages.
+ * - Honours HTTPS_PROXY / HTTP_PROXY / NO_PROXY, which Node's built-in fetch
+ *   ignores (sandboxes and corporate networks often require the proxy).
  */
+const undici = require('undici');
+
+const PROXY_ENV = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => process.env[k]);
+let proxyAgent;
+
+/** fetch() that goes through the environment's proxy when one is configured. */
+function httpFetch(url, init = {}) {
+  if (!PROXY_ENV) return fetch(url, init);
+  proxyAgent ||= new undici.EnvHttpProxyAgent();
+  return undici.fetch(url, { ...init, dispatcher: proxyAgent });
+}
 
 const PROFILES = [
   {
@@ -122,7 +135,7 @@ async function fetchText(url, opts = {}) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
-      const res = await fetch(url, { headers, redirect: 'follow', signal: ctrl.signal });
+      const res = await httpFetch(url, { headers, redirect: 'follow', signal: ctrl.signal });
       const reader = res.body ? res.body.getReader() : null;
       const chunks = [];
       let total = 0;
@@ -240,4 +253,4 @@ async function closeBrowser() {
   }
 }
 
-module.exports = { fetchText, fetchRendered, closeBrowser, detectBlock, FetchError, FEED_ACCEPT, PROFILES };
+module.exports = { httpFetch, fetchText, fetchRendered, closeBrowser, detectBlock, FetchError, FEED_ACCEPT, PROFILES };
