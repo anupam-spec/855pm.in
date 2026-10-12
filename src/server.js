@@ -22,7 +22,7 @@ const http = require('http');
 const fs = require('fs');
 const store = require('./publisher');
 const mailer = require('./mailer');
-const { renderAmp, renderHtml, liveJson } = require('./amp-email');
+const formats = require('./email-formats');
 const { buildRss } = require('./feed');
 const { escapeHtml: esc } = require('./util');
 const pages = require('./web/pages');
@@ -106,7 +106,7 @@ async function handle(req, res) {
 
   if (req.method === 'POST' && p === '/api/newsletters') {
     const body = await readJson(req);
-    const rec = await store.createNewsletter({ url: body.url, rss: body.rss, name: body.name, logo: fileFromDataUrl(body.logo) });
+    const rec = await store.createNewsletter({ url: body.url, rss: body.rss, name: body.name, logo: fileFromDataUrl(body.logo), format: body.format && formats.formatId(body.format) });
     return json(res, 201, { id: rec.id, next: `/n/${rec.id}`, logoError: rec.logoError || '' });
   }
 
@@ -129,29 +129,29 @@ async function handle(req, res) {
         return json(res, err.code === 'NOT_CONFIGURED' ? 503 : 502, { error: err.message, code: err.code || 'SEND_FAILED' });
       }
     }
-    const rec = await store.updateNewsletter(m[1], { rss: body.rss, name: body.name, logo: fileFromDataUrl(body.logo) });
+    const rec = await store.updateNewsletter(m[1], { rss: body.rss, name: body.name, logo: fileFromDataUrl(body.logo), format: body.format && formats.formatId(body.format) });
     if (!rec) return json(res, 404, { error: 'Newsletter not found' });
     return json(res, 200, { ok: true });
   }
 
-  m = p.match(/^\/n\/([a-z0-9]+)(?:\/(preview|amp|live\.json|email\.eml|logo|feed\.xml))?$/);
+  m = p.match(/^\/n\/([a-z0-9]+)(?:\/(preview|amp|live\.json|email\.eml|logo|feed\.xml|noimage\.png))?$/);
   if (req.method === 'GET' && m) {
     const [, id, view] = m;
     if (!store.validId(id)) return send(res, 404, pages.notFound());
+    if (view === 'noimage.png') return send(res, 200, formats.noImage(), 'image/png', { 'Cache-Control': 'public, max-age=86400' });
     // Email opens get the stored copy at once and refresh in the background.
     const rec = await store.latest(id, { wait: view !== 'live.json' && view !== 'logo', force: !view && url.searchParams.has('refresh') });
     if (!rec) return send(res, 404, pages.notFound());
-    const pub = mailer.pubForEmail(rec, base);
-    const data = liveJson({ articles: rec.articles, builtAt: rec.builtAt });
+    const format = formats.formatId(url.searchParams.get('format') || rec.format);
     switch (view) {
       case undefined:
-        return send(res, 200, pages.dashboard({ rec, base, sending: mailer.sendingStatus(), urls: mailer.urlsFor(rec, base) }));
+        return send(res, 200, pages.dashboard({ rec, sending: mailer.sendingStatus(), formats: formats.FORMATS, format: formats.formatId(rec.format) }));
       case 'preview':
-        return send(res, 200, renderHtml({ publication: pub, data }));
+        return send(res, 200, formats.renderHtmlEmail(rec, base, format));
       case 'amp':
-        return send(res, 200, renderAmp({ publication: pub, liveUrl: mailer.urlsFor(rec, base).live, fallback: data }));
+        return send(res, 200, formats.renderAmpEmail(rec, base, format));
       case 'live.json':
-        return json(res, 200, data, ampCorsHeaders(req, url));
+        return json(res, 200, formats.liveData(rec, base, format), ampCorsHeaders(req, url));
       case 'email.eml':
         return send(res, 200, await mailer.buildEml(rec, { to: url.searchParams.get('to') || '', baseUrl: base }), 'message/rfc822', {
           'Content-Disposition': `attachment; filename="${rec.id}.eml"`,

@@ -8,7 +8,7 @@ for (const k of ['SMTP_URL', 'SMTP_HOST', 'MAIL_FROM', 'PUBLIC_BASE_URL']) delet
 
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { renderAmp, renderHtml, liveJson, formatStamp } = require('../src/amp-email');
+const formats = require('../src/email-formats');
 const { imageSize } = require('../src/logo');
 const { fromUploadedRss } = require('../src/publisher');
 const { createServer, ampCorsHeaders } = require('../src/server');
@@ -23,10 +23,6 @@ test('imageSize reads PNG dimensions', () => {
   assert.equal(imageSize(Buffer.from('not an image at all, just text')), null);
 });
 
-test('formatStamp prints IST', () => {
-  assert.equal(formatStamp('2026-10-12T09:20:00Z'), '12 Oct 2026, 2:50 PM IST');
-});
-
 test('uploaded RSS gives publication and stories', () => {
   const { publication, articles } = fromUploadedRss(fx('rss2.xml'));
   assert.equal(publication.name, 'India Today');
@@ -34,37 +30,54 @@ test('uploaded RSS gives publication and stories', () => {
   assert.throws(() => fromUploadedRss('<html>nope</html>'), /isn't an RSS/);
 });
 
-const sample = () => {
-  const articles = fromUploadedRss(fx('rss2.xml')).articles;
-  const pub = { name: 'India Today', url: 'https://www.indiatoday.in/', logoUrl: 'https://x.example/n/a/logo', logoWidth: 200, logoHeight: 40 };
-  return { pub, data: liveJson({ articles, builtAt: '2026-10-12T09:20:00Z' }) };
-};
+const sampleRec = () => ({
+  id: 'abcdef0123456789',
+  publication: { name: 'India Today', url: 'https://www.indiatoday.in/', accent: '' },
+  logo: { type: 'png', width: 200, height: 40, version: 1 },
+  articles: fromUploadedRss(fx('rss2.xml')).articles,
+  slots: 2,
+  format: 'magazine',
+  builtAt: '2026-10-12T09:20:00Z',
+});
+const BASE = 'https://x.example';
 
-test('AMP email: live list, logo masthead, build time, fallback content', () => {
-  const { pub, data } = sample();
-  const amp = renderAmp({ publication: pub, liveUrl: 'https://x.example/n/a/live.json', fallback: data });
-  assert.match(amp, /<html ⚡4email data-css-strict>/);
-  assert.match(amp, /<amp-list src="https:\/\/x.example\/n\/a\/live.json"/);
-  assert.match(amp, /amp-img class="logo" src="https:\/\/x.example\/n\/a\/logo"/);
-  assert.match(amp, /Updated \{\{updated\}\}/);
-  assert.match(amp, /Updated 12 Oct 2026, 2:50 PM IST/);
-  assert.ok(!/<img\s/.test(amp), 'AMP part must use amp-img');
-  assert.ok(Buffer.byteLength(amp) < 200 * 1024, 'Gmail limit is 200 KB');
-  const html = renderHtml({ publication: pub, data });
-  assert.match(html, /Updated 12 Oct 2026, 2:50 PM IST/);
-  assert.match(html, /Sensex jumps 500 points/);
+test('every format: logo masthead, build time, ad slots, live AMP list', () => {
+  const rec = sampleRec();
+  for (const f of formats.FORMATS) {
+    const html = formats.renderHtmlEmail(rec, BASE, f.id);
+    assert.match(html, /x\.example\/n\/abcdef0123456789\/logo\?v=1/, f.id);
+    assert.match(html, /12 Oct,? 2026, 02:50 pm IST/i, f.id);
+    assert.match(html, /gampad\/jump\?iu=%2F6499%2F/, f.id);
+    assert.match(html, /Sensex jumps 500 points/, f.id);
+    const amp = formats.renderAmpEmail(rec, BASE, f.id);
+    assert.match(amp, /<html ⚡4email/);
+    assert.match(amp, new RegExp(`<amp-list src="https://x.example/n/abcdef0123456789/live.json\\?format=${f.id}"`));
+    assert.match(amp, /\{\{s\.0\.title\}\}/);
+    assert.match(amp, /\{\{updated\}\}/);
+    assert.ok(!/<img\s/.test(amp), `${f.id}: AMP part must use amp-img`);
+    assert.ok(Buffer.byteLength(amp) < 200 * 1024, `${f.id}: Gmail limit is 200 KB`);
+  }
 });
 
-test('AMP email passes the AMP4EMAIL validator', async (t) => {
+test('live data fills every story slot', () => {
+  const rec = { ...sampleRec(), slots: 5 };
+  const live = formats.liveData(rec, BASE);
+  assert.equal(live.s.length, 5);
+  assert.match(live.updated, /IST$/);
+  assert.ok(live.s.every((s) => s.title && s.link && /^https:/.test(s.image) && s.category));
+});
+
+test('AMP emails pass the AMP4EMAIL validator', async (t) => {
   let validator;
   try {
     validator = await require('amphtml-validator').getInstance();
   } catch {
     return t.skip('validator could not be downloaded');
   }
-  const { pub, data } = sample();
-  const result = validator.validateString(renderAmp({ publication: pub, liveUrl: 'https://x.example/n/a/live.json', fallback: data }), 'AMP4EMAIL');
-  assert.equal(result.status, 'PASS', JSON.stringify(result.errors));
+  for (const f of formats.FORMATS) {
+    const result = validator.validateString(formats.renderAmpEmail(sampleRec(), BASE, f.id), 'AMP4EMAIL');
+    assert.equal(result.status, 'PASS', `${f.id}: ${JSON.stringify(result.errors.slice(0, 3))}`);
+  }
 });
 
 test('live endpoint CORS headers for AMP email', () => {
@@ -97,13 +110,16 @@ test('site: upload RSS + logo, preview, live JSON, .eml, send needs a provider',
   assert.equal(next, `/n/${id}`);
 
   assert.match(await (await fetch(base + next)).text(), /Send it to your Gmail/);
-  const preview = await (await fetch(`${base}/n/${id}/preview`)).text();
+  const preview = await (await fetch(`${base}/n/${id}/preview?format=digest`)).text();
   assert.match(preview, new RegExp(`/n/${id}/logo\\?v=`));
+  assert.equal((await post(`/api/newsletters/${id}`, { format: 'tiles' })).status, 200);
+  assert.match(await (await fetch(base + next)).text(), /data-format="tiles"[^>]*>|aria-pressed="true" data-format="tiles"/);
   assert.equal((await fetch(`${base}/n/${id}/logo`)).headers.get('content-type'), 'image/png');
 
   const live = await (await fetch(`${base}/n/${id}/live.json`)).json();
   assert.match(live.updated, /IST$/);
-  assert.equal(live.lead.length, 1);
+  assert.equal(live.format, 'tiles');
+  assert.ok(live.s.length >= 1);
 
   const eml = await (await fetch(`${base}/n/${id}/email.eml`)).text();
   const order = ['text/plain', 'text/x-amp-html', 'text/html'].map((t) => eml.indexOf(`Content-Type: ${t}`));

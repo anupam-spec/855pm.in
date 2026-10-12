@@ -1,0 +1,135 @@
+{
+  "title": "Sample Daily",
+  "link": "https://www.example.com/",
+  "description": "Sample publication used to preview newsletter templates.",
+  "image": "",
+  "language": "en",
+  "items": [
+    {
+      "title": "City council approves new metro line connecting airport and tech park",
+      "description": "The 24 km corridor will add 18 stations and is expected to cut commute times by half once it opens in 2029.",
+      "author": "Priya Menon",
+      "category": "Business",
+      "link": "https://www.example.com/business/story-1",
+      "image": "https://picsum.photos/seed/855pm-1/800/450",
+      "pubDate": "2026-10-09T12:00:00.000Z"
+    },
+    {
+      "title": "Sensex closes at record high as IT stocks rally on strong quarterly guidance",
+      "description": "Technology shares led the gains after two large exporters raised their revenue outlook for the year.",
+      "author": "Rahul Verma",
+      "category": "Markets",
+      "link": "https://www.example.com/markets/story-2",
+      "image": "https://picsum.photos/seed/855pm-2/800/450",
+      "pubDate": "2026-10-09T11:13:00.000Z"
+    },
+    {
+      "title": "How to build a six-month emergency fund without touching your investments",
+      "description": "Financial planners suggest automating small transfers and parking the money in liquid funds.",
+      "author": "",
+      "category": "Money",
+      "link": "https://www.example.com/money/story-3",
+      "image": "https://picsum.photos/seed/855pm-3/800/450",
+      "pubDate": "2026-10-09T10:26:00.000Z"
+    },
+    {
+      "title": "Monsoon arrived early this year. Here is what that means for crops",
+      "description": "Agricultural scientists say early rains help sowing but raise the risk of pest outbreaks in some states.",
+      "author": "Ananya Rao",
+      "category": "Science",
+      "link": "https://www.example.com/science/story-4",
+      "image": "https://picsum.photos/seed/855pm-4/800/450",
+      "pubDate": "2026-10-09T09:39:00.000Z"
+    },
+    {
+      "title": "Underdogs stun defending champions in a last-over thriller",
+      "description": "A fearless 48 off 22 balls sealed a chase that few expected to succeed after a top-order collapse.",
+      "author": "Vikram Singh",
+      "category": "Sports",
+      "link": "https://www.example.com/sports/story-5",
+      "image": "https://picsum.photos/seed/855pm-5/800/450",
+      "pubDate": "2026-10-09T08:52:00.000Z"
+    },
+    {
+      "title": "Five settings to change on your new phone today",
+      "description": "From battery health to app permissions, small tweaks can make a big difference to privacy and battery life.",
+      "author": "",
+      "category": "Technology",
+      "link": "https://www.example.com/technology/story-6",
+      "image": "",
+      "pubDate": "2026-10-09T08:05:00.000Z"
+    },
+    {
+      "title": "Doctors warn of rising dengue cases as rains linger",
+      "description": "Hospitals in three cities report a sharp rise in admissions, and officials urge residents to clear standing water.",
+      "author": "Dr. Meera Iyer",
+      "category": "Health",
+      "link": "https://www.example.com/health/story-7",
+      "image": "https://picsum.photos/seed/855pm-7/800/450",
+      "pubDate": "2026-10-09T07:18:00.000Z"
+    },
+    {
+      "title": "Why small towns are the next frontier for startups",
+      "description": "Lower costs and better connectivity are pulling founders away from crowded metros.",
+      "author": "Arjun Kapoor",
+      "category": "Opinion",
+      "link": "https://www.example.com/opinion/story-8",
+      "image": "https://picsum.photos/seed/855pm-8/800/450",
+      "pubDate": "2026-10-09T06:31:00.000Z"
+    },
+    {
+      "title": "A weekend in the hills: where to stay, eat and walk",
+      "description": "Our guide to a slow, two-day escape with misty trails, local food and quiet homestays.",
+      "author": "",
+      "category": "Travel",
+      "link": "https://www.example.com/travel/story-9",
+      "image": "https://picsum.photos/seed/855pm-9/800/450",
+      "pubDate": "2026-10-09T05:44:00.000Z"
+    },
+    {
+      "title": "New entrance exam pattern explained in five questions",
+      "description": "The revised format reduces the number of papers and adds a skills-based section.",
+      "author": "Neha Joshi",
+      "category": "Education",
+      "link": "https://www.example.com/education/story-10",
+      "image": "https://picsum.photos/seed/855pm-10/800/450",
+      "pubDate": "2026-10-09T04:57:00.000Z"
+    },
+    {
+      "title": "Electric scooters outsell petrol models in two states for the first time",
+      "description": "Subsidies and cheaper batteries have tipped the balance for urban commuters.",
+      "author": "Karan Malhotra",
+      "category": "Auto",
+      "link": "https://www.example.com/auto/story-11",
+      "image": "https://picsum.photos/seed/855pm-11/800/450",
+      "pubDate": "2026-10-09T04:10:00.000Z"
+    },
+    {
+      "title": "Café culture & the \"work from anywhere\" crowd",
+      "description": "Cafés are adding power outlets, quiet zones and day passes for remote workers.",
+      "author": "",
+      "category": "Lifestyle",
+      "link": "https://www.example.com/lifestyle/story-12",
+      "image": "https://picsum.photos/seed/855pm-12/800/450",
+      "pubDate": "2026-10-09T03:23:00.000Z"
+    },
+    {
+      "title": "Leaders agree on a framework to cut plastic waste by 2035",
+      "description": "The agreement sets targets but leaves enforcement to individual countries.",
+      "author": "Staff Reporter",
+      "category": "World",
+      "link": "https://www.example.com/world/story-13",
+      "image": "https://picsum.photos/seed/855pm-13/800/450",
+      "pubDate": "2026-10-09T02:36:00.000Z"
+    },
+    {
+      "title": "Regional films dominate this year's festival line-up",
+      "description": "Seven of the twelve competition titles are in languages other than Hindi or English.",
+      "author": "Sana Qureshi",
+      "category": "Entertainment",
+      "link": "https://www.example.com/entertainment/story-14",
+      "image": "https://picsum.photos/seed/855pm-14/800/450",
+      "pubDate": "2026-10-09T01:49:00.000Z"
+    }
+  ]
+}

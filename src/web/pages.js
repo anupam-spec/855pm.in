@@ -1,7 +1,7 @@
 'use strict';
 /** HTML for the publisher site: upload page, newsletter dashboard, errors. */
 const { escapeHtml: esc } = require('../util');
-const { formatStamp } = require('../amp-email');
+const { formatDate } = require('../templates/shared');
 
 const STYLE = `
 :root{--ink:#16181d;--muted:#5f6673;--line:#e2e4e9;--bg:#f6f6f3;--card:#fff;--accent:#c8102e;--accent-ink:#fff;--ok:#1e7b3c;--warn:#8a5a00;--warn-bg:#fff6e0}
@@ -50,6 +50,11 @@ summary{cursor:pointer;font-weight:600}
 .steps li.on::before{content:"◐ "}
 .steps li.done::before{content:"✓ "}
 .dash{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+.formats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+.fmt{padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;text-align:left;font:inherit}
+.fmt strong{display:block;font-size:14px}
+.fmt span{display:block;color:var(--muted);font-size:12px;line-height:1.35;margin-top:2px}
+.fmt[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 .frame{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .frame .bar{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);align-items:center}
 .frame .bar .sp{flex:1}
@@ -67,7 +72,7 @@ iframe{display:block;width:100%;height:900px;border:0;background:#f3f4f6}
 .note{font-size:13px;color:var(--muted);margin:10px 0 0}
 .note code{font-size:12px;background:#f0f0ec;padding:1px 4px;border-radius:4px}
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;background:#e8f5ec;color:var(--ok);font-size:12px;font-weight:600}
-@media (max-width:820px){.dash{grid-template-columns:1fr}.row{grid-template-columns:1fr}iframe{height:700px}h1{font-size:28px}.tabs{flex-direction:column}}
+@media (max-width:820px){.formats{grid-template-columns:1fr 1fr}.dash{grid-template-columns:1fr}.row{grid-template-columns:1fr}iframe{height:700px}h1{font-size:28px}.tabs{flex-direction:column}}
 `;
 
 const layout = (title, body, script = '') => `<!doctype html>
@@ -199,7 +204,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   return layout('Build your newsletter', body, script);
 }
 
-function dashboard({ rec, sending, urls }) {
+function dashboard({ rec, sending, formats, format }) {
   const pub = rec.publication;
   const sourceLabel = rec.kind === 'rss' ? 'Uploaded RSS file' : { feed: 'Your RSS feed', scrape: 'Scraped from your site', sitemap: 'Your news sitemap', llm: 'Read from your site' }[rec.source] || rec.source;
   const sendNote = sending.configured
@@ -207,19 +212,23 @@ function dashboard({ rec, sending, urls }) {
     : `<div class="msg show warn">Sending isn't switched on yet: the site needs an email provider. Until then, download the email below and open it, or preview it here.</div>`;
   const body = `
 <h1>${esc(pub.name)}</h1>
-<p class="lede">Your newsletter is built. It shows your ${rec.logo ? 'logo' : 'name'} on top with the time it was last built, and the stories update each time a reader opens it.</p>
+<p class="lede">Your newsletter is built. Pick a format below. Each one shows your ${rec.logo ? 'logo' : 'name'} on top with the time it was last built, has Google Ad Manager ad slots, and the stories update each time a reader opens it.</p>
 <div class="msg ${rec.logoError || !rec.logo ? 'show warn' : ''}" id="logoWarn">${rec.logoError ? esc(rec.logoError) : !rec.logo ? 'We could not find a usable logo on your site, so the masthead shows your name. Upload a logo below.' : ''}</div>
+<h2 style="font:700 17px/1.2 Georgia,serif;margin:0 0 10px">Pick a format</h2>
+<div class="formats" role="group" aria-label="Format">
+${formats.map((f) => `<button type="button" class="fmt" aria-pressed="${f.id === format}" data-format="${f.id}"><strong>${esc(f.name)}</strong><span>${esc(f.description)}</span></button>`).join('\n')}
+</div>
 <div class="dash">
   <section class="frame">
     <div class="bar">
       <div class="seg" role="group" aria-label="Version">
-        <button type="button" aria-pressed="true" data-src="/n/${rec.id}/preview">Email</button>
-        <button type="button" aria-pressed="false" data-src="/n/${rec.id}/amp">Live (AMP)</button>
+        <button type="button" aria-pressed="true" data-view="preview">Email</button>
+        <button type="button" aria-pressed="false" data-view="amp">Live (AMP)</button>
       </div>
       <span class="sp"></span>
       <button type="button" class="btn ghost small" id="reload">Rebuild now</button>
     </div>
-    <iframe id="pv" src="/n/${rec.id}/preview" title="Newsletter preview"></iframe>
+    <iframe id="pv" src="/n/${rec.id}/preview?format=${format}" title="Newsletter preview"></iframe>
   </section>
   <aside class="side">
     <div class="card">
@@ -247,7 +256,7 @@ function dashboard({ rec, sending, urls }) {
         <dt>Source</dt><dd>${esc(sourceLabel)}</dd>
         ${rec.input ? `<dt>From</dt><dd><a href="${esc(rec.input)}" target="_blank" rel="noopener">${esc(rec.input)}</a></dd>` : ''}
         <dt>Stories</dt><dd>${rec.articles.length}</dd>
-        <dt>Last built</dt><dd>${esc(formatStamp(rec.builtAt))}</dd>
+        <dt>Last built</dt><dd>${esc(formatDate(rec.builtAt))}</dd>
         <dt>Feed</dt><dd><a href="/n/${rec.id}/feed.xml" target="_blank">feed.xml</a></dd>
       </dl>
       ${rec.kind === 'rss'
@@ -262,9 +271,17 @@ function dashboard({ rec, sending, urls }) {
   const script = `${READ_FILE_JS}
 const id = ${JSON.stringify(rec.id)};
 const pv = document.getElementById('pv');
+let view = 'preview', fmt = ${JSON.stringify(format)};
+const show = () => { pv.src = '/n/' + id + '/' + view + '?format=' + fmt; };
 document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
   document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
-  pv.src = b.dataset.src;
+  view = b.dataset.view; show();
+}));
+document.querySelectorAll('.fmt').forEach((b) => b.addEventListener('click', async () => {
+  document.querySelectorAll('.fmt').forEach((x) => x.setAttribute('aria-pressed', x === b));
+  fmt = b.dataset.format; show();
+  // The chosen format is the one that gets sent.
+  try { await postJson('/api/newsletters/' + id, { format: fmt }); } catch (e) {}
 }));
 document.getElementById('reload').addEventListener('click', () => { location.href = location.pathname + '?refresh=1'; });
 document.getElementById('sendForm').addEventListener('submit', async (e) => {

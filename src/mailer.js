@@ -16,7 +16,8 @@
  */
 const nodemailer = require('nodemailer');
 const MailComposer = require('nodemailer/lib/mail-composer');
-const { renderAmp, renderHtml, renderText, liveJson } = require('./amp-email');
+const formats = require('./email-formats');
+const { formatDate } = require('./templates/shared');
 
 function smtpConfig(env = process.env) {
   if (env.SMTP_URL) return env.SMTP_URL;
@@ -37,30 +38,15 @@ function sendingStatus(env = process.env) {
   return { configured: missing.length === 0, missing, from: env.MAIL_FROM || env.SMTP_USER || '' };
 }
 
-/** Public URLs the email points at. `baseUrl` must be https for the AMP part to load. */
-function urlsFor(rec, baseUrl) {
-  const base = `${baseUrl.replace(/\/$/, '')}/n/${rec.id}`;
-  return {
-    live: `${base}/live.json`,
-    logo: rec.logo ? `${base}/logo?v=${rec.logo.version}` : '',
-    page: base,
-  };
-}
-
-/** Publication object the renderers take, with the logo pointed at our copy. */
-function pubForEmail(rec, baseUrl) {
-  const u = urlsFor(rec, baseUrl);
-  return { ...rec.publication, logoUrl: u.logo, logoWidth: rec.logo?.width, logoHeight: rec.logo?.height };
-}
-
 function emailParts(rec, baseUrl) {
-  const publication = pubForEmail(rec, baseUrl);
-  const data = liveJson({ articles: rec.articles, builtAt: rec.builtAt });
+  const base = baseUrl.replace(/\/$/, '');
+  const nl = formats.newsletterFor(rec, base);
+  const text = [nl.publication.name.toUpperCase(), `Updated ${formatDate(nl.generatedAt)}`, '', ...nl.articles.flatMap((a) => [a.title, a.link, '']), nl.publication.url].join('\n');
   return {
-    subject: `${publication.name}: ${data.lead[0]?.title || 'Latest stories'}`,
-    text: renderText({ publication, data }),
-    amp: renderAmp({ publication, liveUrl: urlsFor(rec, baseUrl).live, fallback: data }),
-    html: renderHtml({ publication, data }),
+    subject: nl.subject,
+    text,
+    amp: formats.renderAmpEmail(rec, base),
+    html: formats.renderHtmlEmail(rec, base),
   };
 }
 
@@ -87,4 +73,4 @@ function buildEml(rec, { to, baseUrl }) {
   return new Promise((resolve, reject) => mail.build((err, buf) => (err ? reject(err) : resolve(buf))));
 }
 
-module.exports = { sendNewsletter, buildEml, emailParts, sendingStatus, urlsFor, pubForEmail };
+module.exports = { sendNewsletter, buildEml, emailParts, sendingStatus };

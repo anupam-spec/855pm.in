@@ -109,6 +109,9 @@ async function createNewsletter(input) {
     accent: publication.themeColor || '',
   };
   rec.articles = articles.slice(0, ARTICLE_LIMIT);
+  // The live email keeps this many story slots for good.
+  rec.slots = Math.min(12, rec.articles.length);
+  rec.format = input.format || 'magazine';
   rec.builtAt = new Date().toISOString();
   rec.refreshedAt = rec.builtAt;
   await storeLogo(rec, input.logo ? await normalizeLogo(input.logo) : await downloadLogo(publication.logo));
@@ -116,7 +119,7 @@ async function createNewsletter(input) {
   return save(rec);
 }
 
-async function updateNewsletter(id, { rss, logo, name }) {
+async function updateNewsletter(id, { rss, logo, name, format }) {
   const rec = load(id);
   if (!rec) return null;
   if (rss) {
@@ -131,6 +134,7 @@ async function updateNewsletter(id, { rss, logo, name }) {
     await storeLogo(rec, l);
   }
   if (name && name.trim()) rec.publication.name = name.trim();
+  if (format) rec.format = format;
   delete rec.logoError;
   return save(rec);
 }
@@ -150,6 +154,9 @@ async function refresh(rec) {
   // Keep images we found earlier for the same stories.
   const old = new Map(rec.articles.map((a) => [a.link, a]));
   for (const a of articles) a.image ||= old.get(a.link)?.image || '';
+  // Top up with earlier stories so the email's story slots stay full.
+  const seen = new Set(articles.map((a) => a.link));
+  articles = articles.concat(rec.articles.filter((a) => !seen.has(a.link)));
   const fresh = load(rec.id) || rec;
   fresh.articles = articles.slice(0, ARTICLE_LIMIT);
   fresh.builtAt = fresh.refreshedAt = new Date().toISOString();
