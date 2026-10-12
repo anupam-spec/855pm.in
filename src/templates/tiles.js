@@ -1,6 +1,6 @@
 'use strict';
 /** "Tiles": lead story, two-up tiles, text sections and a picture grid (Mint Money style). */
-const { esc, SANS, SERIF, shell, button, image, adSlot, footer, logo, formatDate } = require('./shared');
+const { esc, SANS, SERIF, shell, button, readMore, image, adSlot, footer, logo, formatDate } = require('./shared');
 
 const ORANGE = '#f99d1c';
 
@@ -8,12 +8,10 @@ function section(title, accent) {
   return `<tr><td class="px" style="padding:24px 32px 4px;"><div style="border-top:2px solid ${accent};padding-top:10px;font-family:${SERIF};font-size:14px;font-weight:bold;color:#111111;">${esc(title)}</div></td></tr>`;
 }
 
-function readMore(a, accent) {
-  return `<div style="padding-top:6px;"><a href="${esc(a.link)}" target="_blank" style="font-family:${SANS};font-size:12px;font-weight:bold;color:${accent};text-decoration:none;">Read more</a></div>`;
-}
+const readMoreSmall = (a, accent) => readMore(a.link, accent, { size: 12, padding: '7px 14px' });
 
 function tile(a, accent) {
-  return `<a href="${esc(a.link)}" target="_blank" style="font-family:${SERIF};font-size:15px;line-height:21px;font-weight:bold;color:#111111;text-decoration:none;">${esc(a.title)}</a>${readMore(a, accent)}`;
+  return `<a href="${esc(a.link)}" target="_blank" style="font-family:${SERIF};font-size:15px;line-height:21px;font-weight:bold;color:#111111;text-decoration:none;">${esc(a.title)}</a>${readMoreSmall(a, accent)}`;
 }
 
 function textItem(a, accent) {
@@ -37,7 +35,7 @@ function render(ctx) {
 ${lead.image ? `<div style="padding-bottom:14px;">${image(lead, { width: 536, nl })}</div>` : ''}
 <a href="${esc(lead.link)}" target="_blank" style="font-family:${SERIF};font-size:24px;line-height:31px;font-weight:bold;color:#111111;text-decoration:none;">${esc(lead.title)}</a>
 ${lead.summary ? `<div style="font-family:${SANS};font-size:14px;line-height:21px;color:#555555;padding-top:8px;">${esc(lead.summary)}</div>` : ''}
-<div style="padding-top:14px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:${accent};border-radius:3px;"><a href="${esc(lead.link)}" target="_blank" style="display:inline-block;padding:10px 20px;font-family:${SANS};font-size:13px;font-weight:bold;color:#111111;text-decoration:none;">Read more</a></td></tr></table></div>
+${readMore(lead.link, accent, { size: 14, padding: '11px 22px' })}
 </td></tr>`;
 
   const pairRow = pair.length

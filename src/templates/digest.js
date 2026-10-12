@@ -1,6 +1,6 @@
 'use strict';
 /** "Digest": text-first numbered briefing that stays small enough to avoid Gmail's 102KB clipping. */
-const { esc, SANS, shell, image, adSlot, footer, logo, formatDate } = require('./shared');
+const { esc, SANS, shell, image, readMore, adSlot, footer, logo, formatDate } = require('./shared');
 
 function render(ctx) {
   const { nl } = ctx;
@@ -18,6 +18,7 @@ function render(ctx) {
 ${a.category ? `<div style="font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8a8f98;padding-bottom:4px;">${esc(a.category)}</div>` : ''}
 <a href="${esc(a.link)}" target="_blank" style="font-size:17px;line-height:23px;font-weight:bold;color:#14171f;text-decoration:none;">${esc(a.title)}</a>
 ${a.summary ? `<div style="font-size:14px;line-height:21px;color:#4a505c;padding-top:6px;">${esc(a.summary)}</div>` : ''}
+${readMore(a.link, accent, { size: 12, padding: '7px 14px' })}
 </td></tr></table>
 </td></tr>`
     )
@@ -41,7 +42,7 @@ ${quick.map((a) => `<div style="padding:8px 0;border-bottom:1px dotted #d5d9e0;f
 <a href="${esc(lead.link)}" target="_blank" style="font-size:21px;line-height:28px;font-weight:bold;color:#14171f;text-decoration:none;">${esc(lead.title)}</a>
 ${lead.image ? `<div style="padding-top:12px;">${image(lead, { width: 492, nl })}</div>` : ''}
 ${lead.summary ? `<div style="font-size:14px;line-height:21px;color:#4a505c;padding-top:10px;">${esc(lead.summary)}</div>` : ''}
-<div style="padding-top:10px;"><a href="${esc(lead.link)}" target="_blank" style="font-size:13px;font-weight:bold;color:${accent};text-decoration:none;">Read the story &rarr;</a></div>
+${readMore(lead.link, accent, { label: 'Read the story →' })}
 </td></tr></table>
 </td></tr>
 ${numbered}

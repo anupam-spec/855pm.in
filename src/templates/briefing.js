@@ -1,13 +1,14 @@
 'use strict';
 /** "Briefing": serif headlines, top banner ad with "Why this ad?", ads every few stories (Live Mint markets / Sinar Harian style). */
-const { esc, SANS, SERIF, shell, button, image, adSlot, footer, logo, formatDate } = require('./shared');
+const { esc, SANS, SERIF, shell, button, readMore, image, adSlot, footer, logo, formatDate } = require('./shared');
 
-function item(a, nl) {
+function item(a, nl, accent) {
   return `<tr><td class="px" style="padding:24px 32px;border-bottom:1px solid #e3e3e3;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
 <td valign="top" style="padding-right:18px;">
 <a href="${esc(a.link)}" target="_blank" style="font-family:${SERIF};font-size:21px;line-height:28px;color:#111111;text-decoration:none;">${esc(a.title)}</a>
 ${a.summary ? `<div style="font-family:${SANS};font-size:13px;line-height:19px;color:#6b6b6b;padding-top:10px;">${esc(a.summary)}</div>` : ''}
+${readMore(a.link, accent, { size: 12, padding: '7px 14px' })}
 </td>
 <td class="thumb" valign="top" width="150" style="width:150px;">${image(a, { width: 150, height: 100, nl })}</td>
 </tr></table>
@@ -29,7 +30,7 @@ function render(ctx) {
   const rows = [];
   let mid = 0;
   nl.articles.forEach((a, i) => {
-    rows.push(item(a, nl));
+    rows.push(item(a, nl, accent));
     if (i < nl.articles.length - 1 && i % 3 === 2) rows.push((i / 3) % 2 < 1 ? adSlot(ctx, 'mid', ++mid) : offer(ctx, accent));
   });
 

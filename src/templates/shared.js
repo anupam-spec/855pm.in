@@ -67,7 +67,32 @@ ${body}
 `;
 }
 
-function button(href, label, { bg = '#e31e24', color = '#ffffff', radius = 4, font = SANS, size = 14, padding = '12px 24px' } = {}) {
+/** Relative luminance (0 dark .. 1 light) of a #rgb / #rrggbb colour, or -1. */
+function luminance(hex) {
+  const m = String(hex || '').match(/^#([0-9a-f]{3}|[0-9a-f]{6})(?:[0-9a-f]{2})?$/i);
+  if (!m) return -1;
+  const h = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1];
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Text colour that reads on a given background. */
+const textOn = (bg) => (luminance(bg) > 0.179 ? '#111111' : '#ffffff');
+
+/**
+ * A publisher's theme colour, if it works as an accent on white (labels,
+ * buttons, rules). Very light colours (white, pastel) are dropped so the
+ * template's own accent is used instead.
+ */
+function usableAccent(hex) {
+  const l = luminance(hex);
+  return l >= 0 && l <= 0.4 ? hex : '';
+}
+
+function button(href, label, { bg = '#e31e24', color = textOn(bg), radius = 4, font = SANS, size = 14, padding = '12px 24px' } = {}) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background:${bg};border-radius:${radius}px;">
 <a href="${esc(href)}" target="_blank" style="display:inline-block;padding:${padding};font-family:${font};font-size:${size}px;font-weight:bold;color:${color};text-decoration:none;border-radius:${radius}px;">${esc(label)}</a>
 </td></tr></table>`;
@@ -81,6 +106,13 @@ function image(a, { width, height, nl, radius = 0, alt } = {}) {
   }
   const initial = esc((nl?.publication.name || '?').trim().charAt(0).toUpperCase());
   return `<a href="${esc(a.link)}" target="_blank" style="text-decoration:none;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" height="${height || Math.round(width * 0.56)}" style="background:#ececec;border-radius:${radius}px;font-family:${SANS};font-size:28px;font-weight:bold;color:#b5b5b5;">${initial}</td></tr></table></a>`;
+}
+
+/** Prominent "Read more" button under a story. */
+function readMore(href, accent, { label = 'Read more →', size = 13, padding = '9px 18px', align = 'left' } = {}) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="${align}" style="margin-top:12px;"><tr><td style="background:${accent};border-radius:4px;">
+<a href="${esc(href)}" target="_blank" style="display:inline-block;padding:${padding};font-family:${SANS};font-size:${size}px;font-weight:bold;color:${textOn(accent)};text-decoration:none;border-radius:4px;">${esc(label)}</a>
+</td></tr></table>`;
 }
 
 function byline(a, { color = '#777777', font = SANS, size = 12, italic = false } = {}) {
@@ -151,7 +183,7 @@ function makeContext(nl, templateId, opts = {}) {
     opts,
     templateId,
     cacheBuster: opts.cacheBuster || String(Date.parse(nl.generatedAt) || Date.now()).slice(-8),
-    accent: opts.accentColor || nl.publication.accentColor || '',
+    accent: usableAccent(opts.accentColor) || usableAccent(nl.publication.accentColor) || '',
     browserUrl: opts.webViewUrl || '[WEBVIEW_URL]',
     unsubscribeUrl: opts.unsubscribeUrl || '[UNSUBSCRIBE_URL]',
   };
@@ -181,4 +213,4 @@ function updatedLine(ctx, { color = '#666666', padding = '0 32px 14px' } = {}) {
   return `<tr><td align="center" style="padding:${padding};font-family:${SANS};font-size:12px;color:${color};">Updated ${esc(formatDate(ctx.nl.generatedAt, ctx.opts))}</td></tr>`;
 }
 
-module.exports = { esc, SANS, SERIF, formatDate, shell, button, image, byline, adSlot, adConfig, gamUrls, makeContext, footer, logo, updatedLine };
+module.exports = { esc, SANS, SERIF, formatDate, shell, button, readMore, textOn, usableAccent, luminance, image, byline, adSlot, adConfig, gamUrls, makeContext, footer, logo, updatedLine };

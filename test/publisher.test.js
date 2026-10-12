@@ -133,3 +133,18 @@ test('site: upload RSS + logo, preview, live JSON, .eml, send needs a provider',
   const bad = await post('/api/newsletters', { rss: '<html></html>' });
   assert.equal(bad.status, 422);
 });
+
+test('light theme colours are not used for buttons; Read more buttons stay readable', () => {
+  const { usableAccent, textOn } = require('../src/templates/shared');
+  assert.equal(usableAccent('#e3eef9'), '');
+  assert.equal(usableAccent('#ffffff'), '');
+  assert.equal(usableAccent('#C04A4A'), '#C04A4A');
+  assert.equal(textOn('#f99d1c'), '#111111');
+  assert.equal(textOn('#e31e24'), '#ffffff');
+  const rec = { ...sampleRec(), publication: { ...sampleRec().publication, accent: '#e3eef9' } };
+  for (const f of formats.FORMATS) {
+    const html = formats.renderHtmlEmail(rec, BASE, f.id);
+    assert.ok(!/#e3eef9/i.test(html), f.id);
+    if (f.id !== 'tiles') assert.match(html, /Read (more|the story) →/, f.id);
+  }
+});

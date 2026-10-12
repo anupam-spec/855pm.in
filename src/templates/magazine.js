@@ -1,6 +1,6 @@
 'use strict';
 /** "Magazine": dark hero story of the day, thumbnail cards and a featured band (India Today style). */
-const { esc, SANS, shell, button, image, adSlot, footer, logo, updatedLine } = require('./shared');
+const { esc, SANS, shell, button, readMore, image, adSlot, footer, logo, updatedLine } = require('./shared');
 
 const RED = '#e31e24';
 
@@ -13,7 +13,7 @@ ${a.category ? `<div style="font-size:11px;font-weight:bold;letter-spacing:1px;t
 <a href="${esc(a.link)}" target="_blank" style="font-size:19px;line-height:25px;font-weight:bold;color:#111111;text-decoration:none;">${esc(a.title)}</a>
 ${a.summary ? `<div style="font-size:14px;line-height:21px;color:#555555;padding-top:8px;">${esc(a.summary)}</div>` : ''}
 ${a.author ? `<div style="font-size:12px;font-style:italic;color:#888888;padding-top:8px;">By ${esc(a.author)}</div>` : ''}
-<div style="padding-top:8px;"><a href="${esc(a.link)}" target="_blank" style="font-size:13px;font-weight:bold;color:${accent};text-decoration:none;">Read more &rarr;</a></div>
+${readMore(a.link, accent)}
 </td></tr></table>
 </td></tr>`;
 }

@@ -1,15 +1,16 @@
 'use strict';
 /** "Newsfeed": dated header, update banner, headline + snippet with image on the right (Times of India style). */
-const { esc, SANS, shell, button, image, adSlot, footer, logo, formatDate } = require('./shared');
+const { esc, SANS, shell, button, readMore, image, adSlot, footer, logo, formatDate } = require('./shared');
 
 const RED = '#e21b22';
 
-function item(a, nl) {
+function item(a, nl, accent) {
   return `<tr><td class="px" style="padding:22px 32px;border-bottom:1px solid #e6e6e6;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
 <td valign="top" style="font-family:${SANS};padding-right:16px;">
 <a href="${esc(a.link)}" target="_blank" style="font-size:19px;line-height:26px;color:#111111;text-decoration:none;">${esc(a.title)}</a>
 ${a.summary ? `<div style="font-size:13px;line-height:19px;color:#767676;padding-top:10px;">${esc(a.summary)}</div>` : ''}
+${readMore(a.link, accent, { size: 12, padding: '7px 14px' })}
 </td>
 <td class="thumb" valign="top" width="180" style="width:180px;">${image(a, { width: 180, height: 110, nl, radius: 4 })}</td>
 </tr></table>
@@ -31,7 +32,7 @@ function render(ctx) {
   const updated = formatDate(nl.generatedAt, ctx.opts);
   const rows = [];
   nl.articles.forEach((a, i) => {
-    rows.push(item(a, nl));
+    rows.push(item(a, nl, accent));
     if (i % 6 === 2 && i < nl.articles.length - 1) rows.push(cta(ctx, accent));
     else if (i % 6 === 5 && i < nl.articles.length - 1) rows.push(adSlot(ctx, 'mid', Math.ceil(i / 6)));
   });
