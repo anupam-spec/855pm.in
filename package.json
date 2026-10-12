@@ -8,6 +8,7 @@
     "855pm-feed": "bin/feed.js"
   },
   "scripts": {
+    "start": "node src/server.js",
     "feed": "node bin/feed.js",
     "test": "node --test test/*.test.js"
   },
@@ -19,9 +20,13 @@
   "dependencies": {
     "cheerio": "^1.2.0",
     "fast-xml-parser": "^5.11.2",
+    "nodemailer": "^10.1.0",
     "undici": "^7.30.0"
   },
   "optionalDependencies": {
     "playwright": "^1.56.1"
+  },
+  "devDependencies": {
+    "amphtml-validator": "^1.0.38"
   }
 }

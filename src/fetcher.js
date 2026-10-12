@@ -253,4 +253,4 @@ async function closeBrowser() {
   }
 }
 
-module.exports = { httpFetch, fetchText, fetchRendered, closeBrowser, detectBlock, FetchError, FEED_ACCEPT, PROFILES };
+module.exports = { httpFetch, fetchText, fetchRendered, getBrowser, closeBrowser, detectBlock, FetchError, FEED_ACCEPT, PROFILES };
