@@ -1,4 +1,4 @@
-# 855pm newsletter builder
+# Newsletter builder
 
 Turns a publisher's RSS feed or plain website URL into structured articles (and an RSS feed) for newsletter templates.
 
@@ -43,7 +43,7 @@ Settings:
 | --- | --- |
 | `PUBLIC_BASE_URL` | https address of the site; emails load the logo and live stories from it |
 | `SMTP_URL` or `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Email provider (Gmail app password, SES, SendGrid, Postmark, ...) |
-| `MAIL_FROM` | Sender, e.g. `855 PM <newsletter@855pm.in>` |
+| `MAIL_FROM` | Sender, e.g. `India Today <newsletter@indiatoday.in>` |
 | `AMP_ALLOWED_SENDER` | Restrict which sender's AMP emails may read live stories (default any) |
 | `DATA_DIR`, `REFRESH_SECONDS`, `NEWSLETTER_TZ` | Storage folder, refresh interval, time zone of the "Updated" line (Asia/Kolkata) |
 

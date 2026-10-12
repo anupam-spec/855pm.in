@@ -79,7 +79,7 @@ const layout = (title, body, script = '') => `<!doctype html>
 <style>${STYLE}</style>
 </head>
 <body>
-<header class="top"><a class="brand" href="/">855<b>pm</b> newsletters</a><a href="/format" class="hint">Our RSS format</a></header>
+<header class="top"><a class="brand" href="/">Newsletter builder</a><a href="/format" class="hint">Our RSS format</a></header>
 <main>${body}</main>
 ${script ? `<script>${script}</script>` : ''}
 </body>
@@ -126,7 +126,7 @@ function home() {
   <div data-pane="rss" hidden>
     <label>RSS file</label>
     <label class="drop" id="rssDrop"><input type="file" accept=".xml,.rss,.atom,application/rss+xml,application/atom+xml,text/xml,application/xml,application/json"><span class="file">Choose an RSS file</span><br><span class="hint">or drop it here</span></label>
-    <p class="hint">Each item needs a title and link; a description, pubDate, category and <code>media:content</code> image make it richer. <a href="/format" download="855pm-sample.xml">Download a sample</a>.</p>
+    <p class="hint">Each item needs a title and link; a description, pubDate, category and <code>media:content</code> image make it richer. <a href="/format" download="sample-feed.xml">Download a sample</a>.</p>
   </div>
   <details>
     <summary>Masthead (optional)</summary>
@@ -196,7 +196,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
     go.disabled = false; go.textContent = 'Build my newsletter';
   }
 });`;
-  return layout('Build your newsletter · 855pm', body, script);
+  return layout('Build your newsletter', body, script);
 }
 
 function dashboard({ rec, sending, urls }) {
@@ -285,10 +285,10 @@ dropZone(document.getElementById('logoDrop'), async (f) => update({ logo: await 
 document.getElementById('nameForm').addEventListener('submit', (e) => { e.preventDefault(); update({ name: document.getElementById('pubName').value }, document.getElementById('mastMsg'), 'Name updated.'); });
 const rssDrop = document.getElementById('rssDrop');
 if (rssDrop) dropZone(rssDrop, async (f) => update({ rss: await readFile(f, false) }, document.getElementById('rssMsg'), 'Stories updated.'));`;
-  return layout(`${pub.name} newsletter · 855pm`, body, script);
+  return layout(`${pub.name} newsletter`, body, script);
 }
 
-const notFound = () => layout('Not found · 855pm', '<h1>Not found</h1><p class="lede">That newsletter does not exist. <a href="/">Build a new one</a>.</p>');
-const error = (msgHtml) => layout('Something went wrong · 855pm', `<h1>Something went wrong</h1><p class="lede">${msgHtml}</p><p><a href="/">Back</a></p>`);
+const notFound = () => layout('Not found', '<h1>Not found</h1><p class="lede">That newsletter does not exist. <a href="/">Build a new one</a>.</p>');
+const error = (msgHtml) => layout('Something went wrong', `<h1>Something went wrong</h1><p class="lede">${msgHtml}</p><p><a href="/">Back</a></p>`);
 
 module.exports = { home, dashboard, notFound, error };

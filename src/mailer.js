@@ -8,7 +8,7 @@
  * SendGrid, Postmark, ...):
  *   SMTP_URL=smtps://user:pass@smtp.example.com:465     or
  *   SMTP_HOST, SMTP_PORT (587), SMTP_USER, SMTP_PASS, SMTP_SECURE=1
- *   MAIL_FROM="855 PM <newsletter@example.com>"
+ *   MAIL_FROM="Newsletter <newsletter@example.com>"
  *
  * Gmail only shows the AMP part when the message passes SPF/DKIM and the
  * sender is registered with Google for dynamic email, or (for testing) the

@@ -267,7 +267,7 @@ function buildRss({ publication, articles, selfUrl }) {
     <description>${esc(publication.description || `Latest stories from ${publication.name}`)}</description>
     <language>${esc(publication.language || 'en')}</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
-    <generator>855pm newsletter builder</generator>${selfUrl ? `\n    <atom:link href="${esc(selfUrl)}" rel="self" type="application/rss+xml"/>` : ''}${
+    <generator>Newsletter builder</generator>${selfUrl ? `\n    <atom:link href="${esc(selfUrl)}" rel="self" type="application/rss+xml"/>` : ''}${
     publication.logo ? `\n    <image><url>${esc(publication.logo)}</url><title>${esc(publication.name)}</title><link>${esc(publication.url)}</link></image>` : ''
   }
 ${items}

@@ -97,7 +97,7 @@ function mastheadLogo(pub, amp) {
 }
 
 function footer(pub) {
-  return `<div class="foot">You are receiving this because you signed up for ${esc(pub.name)} updates.<br><a href="${esc(pub.url)}">${esc(pub.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a> · Built with 855pm</div>`;
+  return `<div class="foot">You are receiving this because you signed up for ${esc(pub.name)} updates.<br><a href="${esc(pub.url)}">${esc(pub.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a></div>`;
 }
 
 /**

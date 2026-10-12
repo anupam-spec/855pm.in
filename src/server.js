@@ -204,7 +204,7 @@ function friendlyError(err) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 8080;
-  createServer().listen(port, () => console.log(`855pm publisher site on http://localhost:${port}`));
+  createServer().listen(port, () => console.log(`Publisher site on http://localhost:${port}`));
 }
 
 module.exports = { createServer, ampCorsHeaders };
