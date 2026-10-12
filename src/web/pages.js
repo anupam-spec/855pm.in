@@ -50,7 +50,10 @@ summary{cursor:pointer;font-weight:600}
 .steps li.on::before{content:"◐ "}
 .steps li.done::before{content:"✓ "}
 .dash{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
-.formats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+.formats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px}
+.fmt.own{border-style:dashed}
+.ownform{display:none;margin:-4px 0 16px}
+.ownform.show{display:block}
 .fmt{padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;text-align:left;font:inherit}
 .fmt strong{display:block;font-size:14px}
 .fmt span{display:block;color:var(--muted);font-size:12px;line-height:1.35;margin-top:2px}
@@ -72,6 +75,7 @@ iframe{display:block;width:100%;height:900px;border:0;background:#f3f4f6}
 .note{font-size:13px;color:var(--muted);margin:10px 0 0}
 .note code{font-size:12px;background:#f0f0ec;padding:1px 4px;border-radius:4px}
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;background:#e8f5ec;color:var(--ok);font-size:12px;font-weight:600}
+@media (max-width:1000px){.formats{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:820px){.formats{grid-template-columns:1fr 1fr}.dash{grid-template-columns:1fr}.row{grid-template-columns:1fr}iframe{height:700px}h1{font-size:28px}.tabs{flex-direction:column}}
 `;
 
@@ -204,7 +208,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   return layout('Build your newsletter', body, script);
 }
 
-function dashboard({ rec, sending, formats, format }) {
+function dashboard({ rec, sending, formats, custom, format }) {
   const pub = rec.publication;
   const sourceLabel = rec.kind === 'rss' ? 'Uploaded RSS file' : { feed: 'Your RSS feed', scrape: 'Scraped from your site', sitemap: 'Your news sitemap', llm: 'Read from your site' }[rec.source] || rec.source;
   const sendNote = sending.configured
@@ -217,7 +221,14 @@ function dashboard({ rec, sending, formats, format }) {
 <h2 style="font:700 17px/1.2 Georgia,serif;margin:0 0 10px">Pick a format</h2>
 <div class="formats" role="group" aria-label="Format">
 ${formats.map((f) => `<button type="button" class="fmt" aria-pressed="${f.id === format}" data-format="${f.id}"><strong>${esc(f.name)}</strong><span>${esc(f.description)}</span></button>`).join('\n')}
+<button type="button" class="fmt own" aria-pressed="${format === 'custom'}" data-format="custom" data-ready="${rec.custom ? 1 : 0}"><strong>${esc(custom.name)}</strong><span>${rec.custom ? `${rec.custom.stories} stories from your newsletter, kept in your design.` : 'Give us the link to your existing newsletter and we keep its design.'}</span></button>
 </div>
+<form class="card ownform${format === 'custom' ? ' show' : ''}" id="ownForm" novalidate>
+  <label for="ownUrl">Link to your existing newsletter</label>
+  <div class="inline"><input id="ownUrl" type="url" placeholder="The &quot;View in browser&quot; link of one issue" value="${esc(rec.custom?.url || '')}"><button class="btn" id="ownBtn" type="submit">Use my newsletter</button></div>
+  <p class="hint">We keep your newsletter's look and swap its stories for your latest ones, with the Updated time and an ad slot on top.</p>
+  <div class="msg" id="ownMsg" role="status"></div>
+</form>
 <div class="dash">
   <section class="frame">
     <div class="bar">
@@ -277,7 +288,24 @@ document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('clic
   document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
   view = b.dataset.view; show();
 }));
+const ownForm = document.getElementById('ownForm');
+ownForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const m = document.getElementById('ownMsg'), btn = document.getElementById('ownBtn');
+  const u = document.getElementById('ownUrl').value.trim();
+  if (!u) return showMsg(m, 'err', 'Paste the link to your newsletter.');
+  btn.disabled = true; btn.textContent = 'Reading it…';
+  try {
+    const r = await postJson('/api/newsletters/' + id, { customUrl: u });
+    showMsg(m, 'ok', 'Found ' + r.stories + ' stories in your newsletter.');
+    setTimeout(() => location.reload(), 700);
+  } catch (err) { showMsg(m, 'err', err.message); btn.disabled = false; btn.textContent = 'Use my newsletter'; }
+});
 document.querySelectorAll('.fmt').forEach((b) => b.addEventListener('click', async () => {
+  if (b.dataset.format === 'custom') {
+    ownForm.classList.add('show');
+    if (b.dataset.ready !== '1') { document.getElementById('ownUrl').focus(); return; }
+  } else ownForm.classList.remove('show');
   document.querySelectorAll('.fmt').forEach((x) => x.setAttribute('aria-pressed', x === b));
   fmt = b.dataset.format; show();
   // The chosen format is the one that gets sent.
@@ -305,7 +333,13 @@ if (rssDrop) dropZone(rssDrop, async (f) => update({ rss: await readFile(f, fals
   return layout(`${pub.name} newsletter`, body, script);
 }
 
+const ampUnavailable = (rec) =>
+  `<!doctype html><meta charset="utf-8"><body style="font:15px/1.5 Arial,sans-serif;color:#333;padding:32px;text-align:center">
+<p><b>The live version isn't available for this design.</b></p>
+<p>Your newsletter's HTML uses something Gmail's live (AMP) email doesn't allow, so it will be sent as a regular email with the latest stories at the time of sending.</p>
+<p><a href="/n/${rec.id}/preview?format=custom">See the regular version</a></p></body>`;
+
 const notFound = () => layout('Not found', '<h1>Not found</h1><p class="lede">That newsletter does not exist. <a href="/">Build a new one</a>.</p>');
 const error = (msgHtml) => layout('Something went wrong', `<h1>Something went wrong</h1><p class="lede">${msgHtml}</p><p><a href="/">Back</a></p>`);
 
-module.exports = { home, dashboard, notFound, error };
+module.exports = { home, dashboard, notFound, error, ampUnavailable };

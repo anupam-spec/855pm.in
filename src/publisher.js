@@ -14,6 +14,8 @@ const crypto = require('crypto');
 const { resolveSource, fetchFeed, parseFeed, buildRss, enrichArticles } = require('./feed');
 const { dedupeArticles, normalizeUrl } = require('./util');
 const { downloadLogo, normalizeLogo, displaySize } = require('./logo');
+const { fetchText } = require('./fetcher');
+const { importNewsletter } = require('./custom-format');
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data'));
 const REFRESH_MS = (Number(process.env.REFRESH_SECONDS) || 300) * 1000;
@@ -139,6 +141,26 @@ async function updateNewsletter(id, { rss, logo, name, format }) {
   return save(rec);
 }
 
+/**
+ * Use the publisher's existing newsletter (the web version of an issue) as
+ * their design: fetch it, keep a cleaned copy and switch to that format.
+ */
+async function setCustomNewsletter(id, url) {
+  const rec = load(id);
+  if (!rec) return null;
+  let page;
+  try {
+    page = await fetchText(normalizeUrl(url), { accept: 'text/html,application/xhtml+xml' });
+  } catch (err) {
+    throw inputError(`We couldn't open that link (${err.message}).`);
+  }
+  const imported = importNewsletter(page.text, page.url);
+  fs.writeFileSync(path.join(dirOf(id), 'custom.html'), imported.html);
+  rec.custom = { url: page.url, stories: imported.stories, title: imported.title, importedAt: new Date().toISOString() };
+  rec.format = 'custom';
+  return save(rec);
+}
+
 /** Re-fetch stories from the source. Uploaded feeds change only on re-upload. */
 async function refresh(rec) {
   if (rec.kind !== 'url') return rec;
@@ -191,4 +213,4 @@ async function latest(id, { wait = true, force = false } = {}) {
   return wait ? inflight.get(id) : rec;
 }
 
-module.exports = { createNewsletter, updateNewsletter, load, latest, logoFile, validId, fromUploadedRss, DATA_DIR };
+module.exports = { createNewsletter, updateNewsletter, setCustomNewsletter, load, latest, logoFile, validId, fromUploadedRss, DATA_DIR };

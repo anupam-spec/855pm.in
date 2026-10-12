@@ -18,6 +18,7 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "amphtml-validator": "^1.0.38",
     "cheerio": "^1.2.0",
     "fast-xml-parser": "^5.11.2",
     "nodemailer": "^10.1.0",
@@ -25,8 +26,5 @@
   },
   "optionalDependencies": {
     "playwright": "^1.56.1"
-  },
-  "devDependencies": {
-    "amphtml-validator": "^1.0.38"
   }
 }

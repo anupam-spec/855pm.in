@@ -14,7 +14,10 @@ const cheerio = require('cheerio');
 const zlib = require('zlib');
 const { buildNewsletter } = require('./newsletter');
 const templates = require('./templates');
-const { formatDate } = require('./templates/shared');
+const fs = require('fs');
+const path = require('path');
+const { formatDate, makeContext, adSlot } = require('./templates/shared');
+const custom = require('./custom-format');
 
 const FORMATS = templates.list();
 const DEFAULT_FORMAT = 'magazine';
@@ -22,7 +25,30 @@ const MAX_STORIES = 12;
 const SENTINEL_DATE = '2001-02-03T04:05:00.000Z';
 const STORY_FIELDS = ['title', 'link', 'summary', 'image', 'category'];
 
-const formatId = (id) => (FORMATS.some((f) => f.id === id) ? id : DEFAULT_FORMAT);
+/** "custom" is the publisher's own newsletter design, once they have given us its link. */
+const CUSTOM = { id: 'custom', name: 'Your newsletter', description: 'Your existing newsletter design, with your latest stories swapped in.' };
+
+const formatId = (id, rec) => (FORMATS.some((f) => f.id === id) || (id === 'custom' && rec?.custom) ? id : DEFAULT_FORMAT);
+
+function customHtml(rec) {
+  return fs.readFileSync(path.join(require('./publisher').DATA_DIR, rec.id, 'custom.html'), 'utf8');
+}
+
+/** Render one format; for "custom", fill the publisher's own newsletter. */
+function renderFormat(rec, format, nl, opts) {
+  if (format !== 'custom') return templates.render(format, nl, opts);
+  const ctx = makeContext(nl, 'custom', opts);
+  const ad = adSlot(ctx, 'top');
+  return custom.render(
+    { html: customHtml(rec) },
+    {
+      stories: nl.articles.map((a) => ({ title: a.title, link: a.link, summary: a.summary, image: a.image })),
+      updated: formatDate(nl.generatedAt, opts),
+      adHtml: ad ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tbody>${ad}</tbody></table>` : '',
+      accent: ctx.accent || '#c8102e',
+    },
+  );
+}
 
 /** Ad settings from the environment; placeholder boxes until a GAM network is set. */
 function adOptions(env = process.env) {
@@ -37,7 +63,7 @@ function renderOpts(rec, base) {
   return {
     ads: adOptions(),
     accentColor: rec.publication.accent || '',
-    webViewUrl: `${base}/n/${rec.id}/preview?format=${formatId(rec.format)}`,
+    webViewUrl: `${base}/n/${rec.id}/preview?format=${formatId(rec.format, rec)}`,
     unsubscribeUrl: rec.publication.url || base,
   };
 }
@@ -62,16 +88,18 @@ function newsletterFor(rec, base) {
 }
 
 function renderHtmlEmail(rec, base, format = rec.format) {
-  return templates.render(formatId(format), newsletterFor(rec, base), renderOpts(rec, base));
+  return renderFormat(rec, formatId(format, rec), newsletterFor(rec, base), renderOpts(rec, base));
 }
 
 /** Number of story slots in the AMP skeleton, fixed when the newsletter is first built. */
-const slotCount = (rec) => Math.max(1, Math.min(MAX_STORIES, rec.slots || rec.articles.length));
+const slotCount = (rec, format) =>
+  Math.max(1, Math.min(MAX_STORIES, format === 'custom' && rec.custom ? rec.custom.stories : rec.slots || rec.articles.length));
 
 /** Body of /n/<id>/live.json. */
 function liveData(rec, base, format = rec.format) {
   const nl = newsletterFor(rec, base);
-  const n = slotCount(rec);
+  format = formatId(format, rec);
+  const n = slotCount(rec, format);
   const stories = [];
   for (let i = 0; i < n; i++) {
     // Fewer fresh stories than slots: repeat from the top rather than leave holes.
@@ -88,7 +116,7 @@ function liveData(rec, base, format = rec.format) {
   return {
     updated: formatDate(nl.generatedAt, opts),
     updatedDate: formatDate(nl.generatedAt, { ...opts, withTime: false }),
-    format: formatId(format),
+    format,
     s: stories,
   };
 }
@@ -96,7 +124,7 @@ function liveData(rec, base, format = rec.format) {
 /** The template rendered with mustache placeholders instead of stories. */
 function skeleton(rec, base, format) {
   const nl = newsletterFor(rec, base);
-  const n = slotCount(rec);
+  const n = slotCount(rec, format);
   nl.generatedAt = SENTINEL_DATE;
   nl.articles = Array.from({ length: n }, (_, i) => ({
     ...Object.fromEntries(STORY_FIELDS.map((f) => [f, `{{s.${i}.${f}}}`])),
@@ -105,7 +133,7 @@ function skeleton(rec, base, format) {
     pubDate: '',
   }));
   const opts = renderOpts(rec, base);
-  let html = templates.render(formatId(format), nl, opts);
+  let html = renderFormat(rec, format, nl, opts);
   html = html.split(formatDate(SENTINEL_DATE, opts)).join('{{updated}}');
   html = html.split(formatDate(SENTINEL_DATE, { ...opts, withTime: false })).join('{{updatedDate}}');
   return html;
@@ -122,6 +150,8 @@ const AMP_HEAD = `<meta charset="utf-8">
 // AMP email allows a fixed set of CSS; drop what the templates add for Outlook/Gmail quirks.
 function cleanCss(css) {
   return css
+    .replace(/(^|[;{\s])-(webkit|moz|ms|o)-[a-z-]+\s*:[^;}"]*;?/gi, '$1')
+    .replace(/(^|[;{\s])(transition|animation|user-select|will-change)[a-z-]*\s*:[^;}"]*;?/gi, '$1')
     .replace(/\s*!important/g, '')
     .replace(/mso-[a-z-]+\s*:[^;"]*;?/gi, '')
     .replace(/-webkit-text-size-adjust\s*:[^;]*;?/gi, '');
@@ -135,6 +165,7 @@ function pxFromStyle(style, prop) {
 /** Body markup of a template email, converted to AMP-valid markup. */
 function toAmpBody(html) {
   const $ = cheerio.load(html, { decodeEntities: false });
+  $('svg, template, video, audio, canvas, picture source').remove();
   $('img').each((_, el) => {
     const img = $(el);
     const style = img.attr('style') || '';
@@ -142,7 +173,8 @@ function toAmpBody(html) {
     const height = Number(img.attr('height')) || pxFromStyle(style, 'height') || Math.round(width * 0.56);
     const fixed = width <= 320 || /display:\s*inline-block/.test(style);
     const amp = $('<amp-img></amp-img>')
-      .attr('src', img.attr('src'))
+      // AMP email only loads https images.
+      .attr('src', (img.attr('src') || '').replace(/^http:\/\//i, 'https://'))
       .attr('alt', img.attr('alt') || '')
       .attr('width', String(width))
       .attr('height', String(height))
@@ -159,12 +191,15 @@ function toAmpBody(html) {
     $(el).attr('style', `${$(el).attr('style') || ''};width:100%;max-width:600px`.replace(/^;/, '').replace(/(^|;)\s*width:600px;?/g, '$1'));
   });
   $('[data-ad-slot]').removeAttr('data-ad-slot');
-  return { body: $('body').html(), css: cleanCss($('head style').html() || '') };
+  const css = $('style').map((_, el) => $(el).html()).get().join('\n');
+  $('style, link, meta, title').remove();
+  return { body: $('body').html(), css: cleanCss(css) };
 }
 
 /** Full AMP email for a stored newsletter in one format. */
 function renderAmpEmail(rec, base, format = rec.format) {
-  const liveUrl = `${base}/n/${rec.id}/live.json?format=${formatId(format)}`;
+  format = formatId(format, rec);
+  const liveUrl = `${base}/n/${rec.id}/live.json?format=${format}`;
   const live = toAmpBody(skeleton(rec, base, format));
   const fallback = toAmpBody(renderHtmlEmail(rec, base, format));
   return `<!doctype html>
@@ -217,4 +252,35 @@ function noImage() {
   return noImagePng;
 }
 
-module.exports = { FORMATS, DEFAULT_FORMAT, formatId, newsletterFor, renderHtmlEmail, renderAmpEmail, liveData, adOptions, noImage, toAmpBody };
+/* ---------------- AMP validation (for publisher-supplied designs) ---------------- */
+
+let validator = null;
+let validatorLoading = null;
+/** Start loading Google's AMP validator (downloads once); resolves to null offline. */
+function loadValidator() {
+  validatorLoading ||= Promise.resolve()
+    .then(() => require('amphtml-validator').getInstance())
+    .then((v) => (validator = v))
+    .catch(() => null);
+  return validatorLoading;
+}
+
+/** true / false when the validator is loaded, null when it isn't (yet). */
+function isValidAmp(html) {
+  if (!validator) return null;
+  return validator.validateString(html, 'AMP4EMAIL').status === 'PASS';
+}
+
+/**
+ * AMP email, or null when this newsletter's design can't be made into valid
+ * AMP (only possible for "custom"); the email then goes out as HTML only.
+ */
+async function ampEmailOrNull(rec, base, format = rec.format) {
+  const amp = renderAmpEmail(rec, base, format);
+  if (formatId(format, rec) !== 'custom') return amp;
+  await loadValidator();
+  // Judge the design, not the address: a local http:// preview is never valid AMP.
+  return isValidAmp(renderAmpEmail(rec, 'https://example.com', format)) === false ? null : amp;
+}
+
+module.exports = { CUSTOM, ampEmailOrNull, loadValidator, isValidAmp, FORMATS, DEFAULT_FORMAT, formatId, newsletterFor, renderHtmlEmail, renderAmpEmail, liveData, adOptions, noImage, toAmpBody };

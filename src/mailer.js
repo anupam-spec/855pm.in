@@ -38,20 +38,21 @@ function sendingStatus(env = process.env) {
   return { configured: missing.length === 0, missing, from: env.MAIL_FROM || env.SMTP_USER || '' };
 }
 
-function emailParts(rec, baseUrl) {
+async function emailParts(rec, baseUrl) {
   const base = baseUrl.replace(/\/$/, '');
   const nl = formats.newsletterFor(rec, base);
   const text = [nl.publication.name.toUpperCase(), `Updated ${formatDate(nl.generatedAt)}`, '', ...nl.articles.flatMap((a) => [a.title, a.link, '']), nl.publication.url].join('\n');
   return {
     subject: nl.subject,
     text,
-    amp: formats.renderAmpEmail(rec, base),
+    // Without a valid AMP part the email is plain HTML (Gmail then shows the HTML part).
+    amp: (await formats.ampEmailOrNull(rec, base)) || undefined,
     html: formats.renderHtmlEmail(rec, base),
   };
 }
 
-function message(rec, { to, baseUrl, from }) {
-  const parts = emailParts(rec, baseUrl);
+async function message(rec, { to, baseUrl, from }) {
+  const parts = await emailParts(rec, baseUrl);
   return { from: from || sendingStatus().from || `${rec.publication.name} <newsletter@localhost>`, to, ...parts };
 }
 
@@ -63,13 +64,13 @@ async function sendNewsletter(rec, { to, baseUrl }) {
     throw err;
   }
   const transport = nodemailer.createTransport(smtpConfig());
-  const info = await transport.sendMail(message(rec, { to, baseUrl, from: status.from }));
+  const info = await transport.sendMail(await message(rec, { to, baseUrl, from: status.from }));
   return { messageId: info.messageId, accepted: info.accepted, rejected: info.rejected };
 }
 
 /** The same email as an .eml file, for testing without a provider. */
-function buildEml(rec, { to, baseUrl }) {
-  const mail = new MailComposer(message(rec, { to: to || 'you@example.com', baseUrl })).compile();
+async function buildEml(rec, { to, baseUrl }) {
+  const mail = new MailComposer(await message(rec, { to: to || 'you@example.com', baseUrl })).compile();
   return new Promise((resolve, reject) => mail.build((err, buf) => (err ? reject(err) : resolve(buf))));
 }
 

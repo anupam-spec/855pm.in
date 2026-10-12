@@ -129,7 +129,16 @@ async function handle(req, res) {
         return json(res, err.code === 'NOT_CONFIGURED' ? 503 : 502, { error: err.message, code: err.code || 'SEND_FAILED' });
       }
     }
-    const rec = await store.updateNewsletter(m[1], { rss: body.rss, name: body.name, logo: fileFromDataUrl(body.logo), format: body.format && formats.formatId(body.format) });
+    if (body.customUrl) {
+      const rec = await store.setCustomNewsletter(m[1], String(body.customUrl));
+      if (!rec) return json(res, 404, { error: 'Newsletter not found' });
+      return json(res, 200, { ok: true, stories: rec.custom.stories });
+    }
+    if (body.format === 'custom') {
+      const cur = store.load(m[1]);
+      if (cur && !cur.custom) return json(res, 422, { error: 'Add the link to your existing newsletter first.' });
+    }
+    const rec = await store.updateNewsletter(m[1], { rss: body.rss, name: body.name, logo: fileFromDataUrl(body.logo), format: body.format && formats.formatId(body.format, store.load(m[1])) });
     if (!rec) return json(res, 404, { error: 'Newsletter not found' });
     return json(res, 200, { ok: true });
   }
@@ -142,14 +151,17 @@ async function handle(req, res) {
     // Email opens get the stored copy at once and refresh in the background.
     const rec = await store.latest(id, { wait: view !== 'live.json' && view !== 'logo', force: !view && url.searchParams.has('refresh') });
     if (!rec) return send(res, 404, pages.notFound());
-    const format = formats.formatId(url.searchParams.get('format') || rec.format);
+    const format = formats.formatId(url.searchParams.get('format') || rec.format, rec);
     switch (view) {
       case undefined:
-        return send(res, 200, pages.dashboard({ rec, sending: mailer.sendingStatus(), formats: formats.FORMATS, format: formats.formatId(rec.format) }));
+        return send(res, 200, pages.dashboard({ rec, sending: mailer.sendingStatus(), formats: formats.FORMATS, custom: formats.CUSTOM, format: formats.formatId(rec.format, rec) }));
       case 'preview':
         return send(res, 200, formats.renderHtmlEmail(rec, base, format));
-      case 'amp':
-        return send(res, 200, formats.renderAmpEmail(rec, base, format));
+      case 'amp': {
+        const amp = await formats.ampEmailOrNull(rec, base, format);
+        if (amp) return send(res, 200, amp);
+        return send(res, 200, pages.ampUnavailable(rec, format));
+      }
       case 'live.json':
         return json(res, 200, formats.liveData(rec, base, format), ampCorsHeaders(req, url));
       case 'email.eml':
@@ -204,6 +216,7 @@ function friendlyError(err) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 8080;
+  formats.loadValidator();
   createServer().listen(port, () => console.log(`Publisher site on http://localhost:${port}`));
 }
 

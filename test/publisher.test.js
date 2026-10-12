@@ -148,3 +148,26 @@ test('light theme colours are not used for buttons; Read more buttons stay reada
     if (f.id !== 'tiles') assert.match(html, /Read (more|the story) →/, f.id);
   }
 });
+
+test('"Your newsletter": stories in an existing newsletter are swapped for live ones', async () => {
+  const custom = require('../src/custom-format');
+  const imported = custom.importNewsletter(fx('existing-newsletter.html'), 'https://news.example.com/webversion/123');
+  assert.equal(imported.stories, 3);
+  assert.ok(!/trackOpen|onclick/.test(imported.html), 'scripts and handlers removed');
+  assert.match(imported.html, /src="https:\/\/news.example.com\/img\/logo.png"/, 'relative images made absolute');
+
+  const stories = [1, 2, 3].map((n) => ({ title: `New headline ${n}`, link: `https://news.example.com/new-${n}`, summary: `New summary ${n}`, image: `https://cdn.example.com/new-${n}.jpg` }));
+  const html = custom.render(imported, { stories, updated: '12 Oct 2026, 2:50 pm IST' });
+  for (const n of [1, 2, 3]) assert.match(html, new RegExp(`New headline ${n}`));
+  assert.ok(!/Old story/.test(html), 'old headlines replaced');
+  assert.ok(!/old-story/.test(html), 'old links replaced');
+  assert.match(html, /new-1\.jpg/);
+  assert.match(html, /New summary 1/);
+  assert.match(html, /New summary 2/);
+  assert.match(html, /Updated 12 Oct 2026/);
+  assert.match(html, /facebook\.com\/examplenews/, 'social links kept');
+  assert.match(html, /list-manage\.com\/unsubscribe/, 'unsubscribe kept');
+  assert.match(html, /news\.example\.com\/"/, 'logo link kept');
+
+  assert.throws(() => custom.importNewsletter('<html><body><p>No links here</p></body></html>', 'https://x.example/'), /couldn't find any stories/);
+});
