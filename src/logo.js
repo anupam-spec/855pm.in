@@ -74,15 +74,21 @@ async function normalizeLogo(buf) {
   return { buffer: buf, ...size };
 }
 
-async function downloadLogo(url) {
+async function downloadLogo(url, { userAgent = PROFILES[0]['User-Agent'] } = {}) {
+  const data = String(url || '').match(/^data:image\/[a-z+.-]+(;base64)?,(.*)$/is);
+  if (data) return normalizeLogo(data[1] ? Buffer.from(data[2], 'base64') : Buffer.from(decodeURIComponent(data[2])));
   if (!/^https?:\/\//i.test(url || '')) return null;
-  try {
-    const res = await httpFetch(url, { headers: { 'User-Agent': PROFILES[0]['User-Agent'], Accept: 'image/png,image/jpeg,image/*,*/*;q=0.5' }, signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return null;
-    return await normalizeLogo(Buffer.from(await res.arrayBuffer()));
-  } catch {
-    return null;
+  // One retry: image CDNs (Wikimedia especially) sometimes fail the first, uncached request.
+  for (let tries = 0; tries < 2; tries++) {
+    try {
+      const res = await httpFetch(url, { headers: { 'User-Agent': userAgent, Accept: 'image/png,image/jpeg,image/svg+xml,image/*,*/*;q=0.5' }, signal: AbortSignal.timeout(15000) });
+      if (res.ok) return await normalizeLogo(Buffer.from(await res.arrayBuffer()));
+      if (res.status !== 429 && res.status < 500) return null;
+    } catch {
+      /* timeout or network error: retry once */
+    }
   }
+  return null;
 }
 
 /** Size the logo fits at in the masthead box. */
@@ -91,4 +97,115 @@ function displaySize({ width, height }) {
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
-module.exports = { imageSize, normalizeLogo, downloadLogo, displaySize };
+/* ---------------- Finding a publisher's logo ---------------- */
+
+// Wikimedia asks for a UA that says who we are; anonymous ones are rate limited harder.
+const WIKI_UA = 'NewsletterBuilder/1.0 (https://github.com/anupam-spec/855pm.in; publisher logo lookup)';
+const wikiCache = new Map();
+const bareHost = (u) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+// A masthead logo is wide or at least reasonably sized; tracking pixels and spacers are not.
+const usableLogo = (l) => l && l.width >= 40 && l.height >= 16 && l.width * l.height >= 2000;
+const usableIcon = (l) => l && l.width >= 64 && l.height >= 64;
+
+/**
+ * Logo and name from Wikidata for a site, via its "official website" (P856)
+ * and "logo image" (P154). Works when the site itself blocks us (WSJ, NYT).
+ */
+async function wikidataLogo(siteUrl) {
+  const host = bareHost(siteUrl);
+  if (!host) return null;
+  if (!wikiCache.has(host)) {
+    const lookup = lookupWikidata(host);
+    wikiCache.set(host, lookup);
+    // Keep answers for a day; forget failures so the next build tries again.
+    lookup.then((r) => setTimeout(() => wikiCache.delete(host), r ? 86400e3 : 0).unref?.());
+  }
+  return wikiCache.get(host);
+}
+
+async function lookupWikidata(host) {
+  const get = async (params) => {
+    for (let tries = 0; tries < 3; tries++) {
+      try {
+        const res = await httpFetch(`https://www.wikidata.org/w/api.php?format=json&${new URLSearchParams(params)}`, {
+          headers: { 'User-Agent': WIKI_UA },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (res.ok) return await res.json();
+        if (res.status !== 429 && res.status < 500) return null;
+        const wait = Number(res.headers.get('retry-after')) || 1;
+        if (wait > 5) return null;
+        await new Promise((r) => setTimeout(r, wait * 1000 + 250));
+      } catch {
+        /* network error: try again */
+      }
+    }
+    return null;
+  };
+  try {
+    const found = await get({ action: 'query', list: 'search', srlimit: '8', srsearch: `haswbstatement:P154 haswbstatement:P856 "${host}"` });
+    const ids = (found?.query?.search || []).map((r) => r.title).filter((t) => /^Q\d+$/.test(t));
+    if (!ids.length) return null;
+    const ents = await get({ action: 'wbgetentities', ids: ids.join('|'), props: 'claims|labels', languages: 'en' });
+    for (const id of ids) {
+      const e = ents?.entities?.[id];
+      const sites = (e?.claims?.P856 || []).map((c) => c.mainsnak?.datavalue?.value).filter(Boolean);
+      if (!sites.some((u) => bareHost(u) === host)) continue;
+      // Prefer the current logo (no end date) when several are listed.
+      const logos = (e.claims.P154 || []).filter((c) => !c.qualifiers?.P582).concat(e.claims.P154 || []);
+      const file = logos.map((c) => c.mainsnak?.datavalue?.value).find(Boolean);
+      if (!file) continue;
+      return { url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=600`, name: e.labels?.en?.value || '' };
+    }
+  } catch {
+    /* Wikidata unreachable: fall through to icons */
+  }
+  return null;
+}
+
+/**
+ * Best logo for a publication: candidates from its own page (structured data,
+ * header images, inline SVG) and feed, then Wikidata, then its app icon or
+ * favicon. Returns { logo, name, from } with `logo` normalised, or null.
+ */
+async function findLogo(publication, { log } = {}) {
+  const site = publication.url;
+  const tried = new Set();
+  const attempt = async (url, ok, from, opts) => {
+    if (!url || tried.has(url)) return null;
+    tried.add(url);
+    const l = await downloadLogo(url, opts);
+    if (log) log.push({ from, url: url.startsWith('data:') ? 'inline svg' : url, ok: !!(l && ok(l)) });
+    return l && ok(l) ? { logo: l, from } : null;
+  };
+  const candidates = [...(publication.logoCandidates || []), publication.logo].filter(Boolean).slice(0, 8);
+  for (const url of candidates) {
+    const hit = await attempt(url, usableLogo, 'site');
+    if (hit) return hit;
+  }
+  const wiki = await wikidataLogo(site);
+  if (wiki) {
+    const hit = await attempt(wiki.url, usableLogo, 'wikidata', { userAgent: WIKI_UA });
+    if (hit) return { ...hit, name: wiki.name };
+  }
+  const host = bareHost(site);
+  const icons = [
+    ...(publication.iconCandidates || []),
+    site && new URL('/apple-touch-icon.png', site).toString(),
+    host && `https://www.google.com/s2/favicons?domain=${host}&sz=256`,
+  ];
+  for (const url of icons) {
+    const hit = await attempt(url, usableIcon, 'icon');
+    if (hit) return { ...hit, name: wiki?.name };
+  }
+  return wiki?.name ? { logo: null, name: wiki.name, from: 'wikidata' } : null;
+}
+
+module.exports = { imageSize, normalizeLogo, downloadLogo, displaySize, findLogo, wikidataLogo };

@@ -451,7 +451,8 @@ async function resolveSource(input, { limit = 25, enrich = true, fetchOptions = 
   }
   if (feed) {
     const fromFeed = publicationFromFeed(feed, baseUrl);
-    return finish('feed', { ...fromFeed, ...pick(publication, ['logo', 'favicon', 'themeColor']), name: publication.name || fromFeed.name }, await enrichFeedItems(feed.items), feed.feedUrl);
+    const logoCandidates = [...(publication.logoCandidates || []), ...(fromFeed.logo ? [fromFeed.logo] : [])];
+    return finish('feed', { ...fromFeed, ...pick(publication, ['logo', 'favicon', 'themeColor', 'iconCandidates', 'nameFromHost']), logoCandidates, name: (publication.nameFromHost ? feedTitleName(fromFeed.name) : publication.name) || fromFeed.name || publication.name }, await enrichFeedItems(feed.items), feed.feedUrl);
   }
 
   // 4. Scrape the page.
@@ -527,6 +528,11 @@ async function resolveSource(input, { limit = 25, enrich = true, fetchOptions = 
     return list;
   }
 
+  // "NYT > Top Stories", "BBC News | Home": the publication is the first part.
+  function feedTitleName(title) {
+    return String(title || '').split(/\s+[>|»]\s+/)[0].trim();
+  }
+
   function finish(src, pub, items, feedUrl) {
     const list = dedupeArticles(items).slice(0, limit);
     return {
@@ -550,7 +556,8 @@ function publicationFromFeed(feed, pageUrl) {
 
 function fallbackPublication(pageUrl) {
   const host = hostnameOf(pageUrl);
-  return { name: prettyNameFromHost(host), url: new URL('/', pageUrl).toString(), description: '', logo: '', favicon: new URL('/favicon.ico', pageUrl).toString(), themeColor: '', language: '' };
+  // The page was unreachable (often bot protection): the logo is looked up elsewhere later.
+  return { name: prettyNameFromHost(host), nameFromHost: true, url: new URL('/', pageUrl).toString(), description: '', logo: '', logoCandidates: [], iconCandidates: [], favicon: new URL('/favicon.ico', pageUrl).toString(), themeColor: '', language: '' };
 }
 
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k]).map((k) => [k, o[k]]));

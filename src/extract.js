@@ -50,6 +50,81 @@ const ldImage = (img) => {
   return img.url || img.contentUrl || '';
 };
 
+const LOGO_HINT = /logo|brand|masthead|site-?title|wordmark|nameplate/i;
+
+/** Best image URL of an <img>: lazy-load attributes and the largest srcset entry count too. */
+function imgSrc($img, pageUrl) {
+  const srcset = $img.attr('srcset') || $img.attr('data-srcset') || '';
+  const best = srcset
+    .split(',')
+    .map((part) => part.trim().split(/\s+/))
+    .filter(([u]) => u)
+    .sort((a, b) => (parseFloat(b[1]) || 1) - (parseFloat(a[1]) || 1))[0]?.[0];
+  const src = [$img.attr('src'), $img.attr('data-src'), $img.attr('data-lazy-src'), $img.attr('data-original'), best].find((u) => u && !/^data:image\/(gif|png);base64,.{0,200}$/i.test(u));
+  return absolutize(src || '', pageUrl);
+}
+
+/** An inline <svg> logo as a data: URL (rasterised later). */
+function inlineSvg($, el) {
+  const svg = $(el).clone();
+  if (!svg.attr('xmlns')) svg.attr('xmlns', 'http://www.w3.org/2000/svg');
+  // <use href="#id"> needs the referenced symbol inside the same document.
+  svg.find('use').each((_, u) => {
+    const ref = ($(u).attr('href') || $(u).attr('xlink:href') || '').replace(/^#/, '');
+    const sym = ref && $(`[id="${ref}"]`).first();
+    if (sym && sym.length) $(u).replaceWith(`<g>${sym.html()}</g>`);
+  });
+  const xml = $.html(svg);
+  return xml.length < 200000 ? `data:image/svg+xml;base64,${Buffer.from(xml).toString('base64')}` : '';
+}
+
+/**
+ * Masthead logo candidates, best first: structured data, logo-looking images
+ * and inline SVGs in the header, meta tags. `icons` are square app icons,
+ * used only when nothing better works.
+ */
+function logoCandidatesFrom($, pageUrl, structured = []) {
+  const logos = [];
+  const add = (u) => {
+    const abs = u && (u.startsWith('data:') ? u : absolutize(u, pageUrl));
+    if (abs && !logos.includes(abs)) logos.push(abs);
+  };
+  structured.forEach(add);
+  add($('meta[property="og:logo"], meta[itemprop="logo"]').attr('content'));
+  add($('[itemprop="logo"]').find('img').addBack('img').attr('src'));
+
+  const scopes = 'header, [role=banner], .header, #header, .masthead, [class*="header" i], body';
+  const logoish = (el) => {
+    const $el = $(el);
+    const own = [$el.attr('class'), $el.attr('id'), $el.attr('alt'), $el.attr('title'), $el.attr('aria-label')].join(' ');
+    const link = $el.closest('a');
+    const linkInfo = [link.attr('class'), link.attr('id'), link.attr('aria-label'), link.attr('title')].join(' ');
+    let homeLink = false;
+    try {
+      homeLink = link.length && new URL(link.attr('href') || '', pageUrl).pathname.replace(/\/+$/, '') === '';
+    } catch {}
+    const parentInfo = $el.parents().slice(0, 3).map((_, p) => `${$(p).attr('class') || ''} ${$(p).attr('id') || ''}`).get().join(' ');
+    return LOGO_HINT.test(own) || LOGO_HINT.test(linkInfo) || LOGO_HINT.test(parentInfo) || homeLink;
+  };
+  for (const scope of scopes.split(', ')) {
+    $(scope).first().find('img, svg').each((_, el) => {
+      if (logos.length >= 8 || !logoish(el)) return;
+      if (el.tagName === 'svg') {
+        if ($(el).closest('button').length || $(el).find('path, text, use, image').length === 0) return;
+        add(inlineSvg($, el));
+      } else add(imgSrc($(el), pageUrl));
+    });
+    if (logos.length) break;
+  }
+
+  const icons = [];
+  $('link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"], link[rel="icon"][sizes], link[rel="mask-icon"]').each((_, el) => {
+    const u = absolutize($(el).attr('href'), pageUrl);
+    if (u && !icons.includes(u)) icons.push(u);
+  });
+  return { logos, icons };
+}
+
 /** Branding + metadata about the publication. */
 function extractPublication($, pageUrl) {
   const meta = (sel) => cleanText($(sel).attr('content'));
@@ -63,20 +138,16 @@ function extractPublication($, pageUrl) {
   const titleName = segments.length > 1 ? [segments[0], segments[segments.length - 1]].sort((a, b) => a.length - b.length)[0] : rawTitle;
   const name = meta('meta[property="og:site_name"]') || org?.name || pub?.name || (titleName && titleName.length < 60 ? titleName : '') || prettyNameFromHost(host);
 
-  const logoCandidates = [
-    ldImage(org?.logo),
-    ldImage(pub?.logo),
-    $('header img[class*="logo" i], header img[alt*="logo" i], a[class*="logo" i] img, img[class*="logo" i], img[id*="logo" i]').first().attr('src'),
-    $('link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]').attr('href'),
-    $('link[rel="icon"][sizes="192x192"], link[rel="icon"][sizes="512x512"]').attr('href'),
-  ].map((u) => absolutize(u, pageUrl)).filter((u) => u && !/\.svg(\?|$)/i.test(u));
+  const { logos, icons } = logoCandidatesFrom($, pageUrl, [ldImage(org?.logo), ldImage(pub?.logo)]);
   const favicon = absolutize($('link[rel~="icon"]').attr('href') || '/favicon.ico', pageUrl);
 
   return {
     name: cleanText(name),
     url: new URL('/', pageUrl).toString(),
     description: meta('meta[name="description"]') || meta('meta[property="og:description"]'),
-    logo: logoCandidates[0] || '',
+    logo: logos[0] || '',
+    logoCandidates: logos,
+    iconCandidates: icons,
     favicon,
     themeColor: (meta('meta[name="theme-color"]') || '').match(/^#[0-9a-f]{3,8}$/i)?.[0] || '',
     language: ($('html').attr('lang') || meta('meta[property="og:locale"]') || '').slice(0, 5),

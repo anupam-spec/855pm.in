@@ -171,3 +171,31 @@ test('"Your newsletter": stories in an existing newsletter are swapped for live 
 
   assert.throws(() => custom.importNewsletter('<html><body><p>No links here</p></body></html>', 'https://x.example/'), /couldn't find any stories/);
 });
+
+test('logo candidates: JSON-LD, lazy/srcset header images, inline SVG, icons', async () => {
+  const cheerio = require('cheerio');
+  const { extractPublication } = require('../src/extract');
+  const { downloadLogo } = require('../src/logo');
+  const page = (body, head = '') => cheerio.load(`<html><head>${head}</head><body>${body}</body></html>`);
+  const url = 'https://news.example.com/';
+
+  const ld = extractPublication(page('', '<script type="application/ld+json">{"@type":"NewsMediaOrganization","name":"Example","logo":{"@type":"ImageObject","url":"/img/ld-logo.png"}}</script>'), url);
+  assert.equal(ld.logoCandidates[0], 'https://news.example.com/img/ld-logo.png');
+
+  const lazy = extractPublication(page('<header><a href="/"><img class="site-logo" src="data:image/gif;base64,R0lGOD" data-src="/img/lazy-logo.png" alt="Example"></a></header>'), url);
+  assert.ok(lazy.logoCandidates.includes('https://news.example.com/img/lazy-logo.png'), JSON.stringify(lazy.logoCandidates));
+
+  const srcset = extractPublication(page('<header><img class="logo" srcset="/img/l-1x.png 1x, /img/l-2x.png 2x"></header>'), url);
+  assert.ok(srcset.logoCandidates.includes('https://news.example.com/img/l-2x.png'), JSON.stringify(srcset.logoCandidates));
+
+  const svg = extractPublication(page('<header><a href="/" aria-label="Example home"><svg viewBox="0 0 100 20" class="logo"><path d="M0 0h100v20H0z"/></svg></a></header>'), url);
+  const inline = svg.logoCandidates.find((c) => c.startsWith('data:image/svg+xml;base64,'));
+  assert.ok(inline, 'inline SVG becomes a data URL');
+  assert.match(Buffer.from(inline.split(',')[1], 'base64').toString(), /<svg[^>]*xmlns="http:\/\/www.w3.org\/2000\/svg"/);
+
+  const icons = extractPublication(page('', '<link rel="apple-touch-icon" href="/apple-180.png">'), url);
+  assert.ok(icons.iconCandidates.includes('https://news.example.com/apple-180.png'));
+
+  const png = await downloadLogo(`data:image/png;base64,${PNG.toString('base64')}`);
+  assert.deepEqual([png.type, png.width, png.height], ['png', 1, 1]);
+});

@@ -13,7 +13,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { resolveSource, fetchFeed, parseFeed, buildRss, enrichArticles } = require('./feed');
 const { dedupeArticles, normalizeUrl } = require('./util');
-const { downloadLogo, normalizeLogo, displaySize } = require('./logo');
+const { findLogo, wikidataLogo, normalizeLogo, displaySize } = require('./logo');
 const { fetchText } = require('./fetcher');
 const { importNewsletter } = require('./custom-format');
 
@@ -116,7 +116,17 @@ async function createNewsletter(input) {
   rec.format = input.format || 'magazine';
   rec.builtAt = new Date().toISOString();
   rec.refreshedAt = rec.builtAt;
-  await storeLogo(rec, input.logo ? await normalizeLogo(input.logo) : await downloadLogo(publication.logo));
+  if (input.logo) await storeLogo(rec, await normalizeLogo(input.logo));
+  else {
+    const found = await findLogo(publication);
+    if (found?.logo) await storeLogo(rec, found.logo);
+    rec.logoSource = found?.from || '';
+    // Sites that block us only give a name made from their domain ("Wsj") or a feed title ("NYT > Top Stories").
+    if (publication.nameFromHost && !(input.name || '').trim()) {
+      const name = found?.name || (await wikidataLogo(publication.url))?.name;
+      if (name) rec.publication.name = name;
+    }
+  }
   if (input.logo && !rec.logo) rec.logoError = 'The uploaded logo could not be read; use a PNG, JPEG, GIF, WebP or SVG.';
   return save(rec);
 }
