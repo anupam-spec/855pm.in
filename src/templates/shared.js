@@ -201,7 +201,15 @@ function footer(ctx, { bg = '#1f1f1f', color = '#bdbdbd', link = '#ffffff' } = {
 function logo(ctx, { height = 40, color = '#111111', font = SANS, size = 26 } = {}) {
   const p = ctx.nl.publication;
   // Known logo dimensions give the image a real width (AMP email needs one).
-  const width = p.logoWidth && p.logoHeight ? Math.min(240, Math.round((p.logoWidth * height) / p.logoHeight)) : 0;
+  // Wide logos are capped at 240px and shrink in height to keep their shape.
+  let width = 0;
+  if (p.logoWidth && p.logoHeight) {
+    width = Math.round((p.logoWidth * height) / p.logoHeight);
+    if (width > 240) {
+      height = Math.max(1, Math.round((240 * p.logoHeight) / p.logoWidth));
+      width = 240;
+    }
+  }
   const inner = p.logo
     ? `<img src="${esc(p.logo)}" height="${height}"${width ? ` width="${width}"` : ''} alt="${esc(p.name)}" style="display:inline-block;height:${height}px;width:${width ? `${width}px` : 'auto'};max-width:240px;">`
     : `<span style="font-family:${font};font-size:${size}px;font-weight:bold;color:${color};">${esc(p.name)}</span>`;

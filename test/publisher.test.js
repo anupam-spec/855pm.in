@@ -199,3 +199,13 @@ test('logo candidates: JSON-LD, lazy/srcset header images, inline SVG, icons', a
   const png = await downloadLogo(`data:image/png;base64,${PNG.toString('base64')}`);
   assert.deepEqual([png.type, png.width, png.height], ['png', 1, 1]);
 });
+
+test('wide logos keep their shape in the masthead', () => {
+  const rec = { ...sampleRec(), logo: { type: 'png', width: 960, height: 90, version: 1 } };
+  for (const f of formats.FORMATS) {
+    const html = formats.renderHtmlEmail(rec, BASE, f.id);
+    const img = html.match(/<img src="[^"]*\/logo\?v=1"[^>]*>/)[0];
+    assert.match(img, /height="23" width="240"/, `${f.id}: ${img}`);
+    assert.match(img, /height:23px;width:240px/, f.id);
+  }
+});
