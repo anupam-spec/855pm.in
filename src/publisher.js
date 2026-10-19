@@ -193,8 +193,25 @@ async function refresh(rec) {
   fresh.articles = articles.slice(0, ARTICLE_LIMIT);
   fresh.builtAt = fresh.refreshedAt = new Date().toISOString();
   delete fresh.lastRefreshError;
+  await retryLogo(fresh);
   fs.writeFileSync(path.join(dirOf(rec.id), 'feed.xml'), buildRss({ publication: { ...fresh.publication, logo: '' }, articles: fresh.articles }));
   return save(fresh);
+}
+
+/** A newsletter built without a logo looks for one again on rebuild, at most hourly. */
+async function retryLogo(rec) {
+  if (rec.logo || Date.now() - Date.parse(rec.logoTriedAt || 0) < 3600e3) return;
+  rec.logoTriedAt = new Date().toISOString();
+  try {
+    const { publication } = await resolveSource(rec.input, { limit: 1, enrich: false });
+    const found = await findLogo(publication);
+    if (found?.logo) {
+      await storeLogo(rec, found.logo);
+      rec.logoSource = found.from;
+    }
+  } catch {
+    /* keep the name-only masthead */
+  }
 }
 
 const inflight = new Map();

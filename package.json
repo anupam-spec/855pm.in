@@ -18,6 +18,7 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "amphtml-validator": "^1.0.38",
     "cheerio": "^1.2.0",
     "fast-xml-parser": "^5.11.2",

@@ -65,8 +65,38 @@ async function fitSvg(page, svg) {
   }
 }
 
-/** Render an SVG to a transparent PNG about MAX_H*2 pixels tall. */
+/**
+ * Render an SVG to a transparent PNG about MAX_H*2 pixels tall. resvg is a
+ * self-contained renderer that installs everywhere (Windows included);
+ * headless Chromium is the fallback for SVGs it can't handle.
+ */
 async function rasterizeSvg(svg) {
+  return resvgRaster(svg) || chromiumRaster(svg);
+}
+
+function resvgRaster(svg) {
+  let Resvg;
+  try {
+    ({ Resvg } = require('@resvg/resvg-js'));
+  } catch {
+    return null;
+  }
+  try {
+    const r = new Resvg(svg, { fitTo: { mode: 'height', value: MAX_H * 2 }, background: 'rgba(0,0,0,0)' });
+    // No viewBox: the site sized it with CSS, so crop to what is actually drawn.
+    if (!/<svg[^>]*\sviewBox=/i.test(svg)) {
+      const box = r.getBBox();
+      if (box) r.cropByBBox(box);
+    }
+    const png = r.render().asPng();
+    const size = imageSize(png);
+    return size && size.width > 1 && size.height > 1 ? png : null;
+  } catch {
+    return null;
+  }
+}
+
+async function chromiumRaster(svg) {
   const browser = await getBrowser();
   if (!browser) return null;
   const page = await browser.newPage({ deviceScaleFactor: 2 });

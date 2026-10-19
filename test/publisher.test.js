@@ -221,3 +221,12 @@ test('inline SVG logo drawn from a <symbol> keeps the symbol viewBox', () => {
   assert.match(xml, /<svg[^>]*viewBox="0 0 800 277"/);
   assert.match(xml, /<path d="M0 0h800v277H0z"/);
 });
+
+test('SVG logos render without Chromium, cropped to the drawing when unsized', async () => {
+  const { normalizeLogo } = require('../src/logo');
+  const sized = await normalizeLogo(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100"><rect width="400" height="100" fill="#c00"/></svg>'));
+  assert.deepEqual([sized.type, sized.width, sized.height], ['png', 512, 128]);
+  // No viewBox or size (the site set it with CSS): crop to the drawn area, not a 100x100 corner.
+  const unsized = await normalizeLogo(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect x="10" y="10" width="600" height="150" fill="#c00"/></svg>'));
+  assert.ok(unsized && Math.abs(unsized.width / unsized.height - 4) < 0.1, JSON.stringify(unsized && [unsized.width, unsized.height]));
+});
