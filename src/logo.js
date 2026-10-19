@@ -42,13 +42,36 @@ function imageSize(buf) {
 
 const isSvg = (buf) => /<svg[\s>]/i.test(buf.slice(0, 2000).toString('utf8'));
 
+/**
+ * Inline SVG logos are often sized only by the site's CSS, with no viewBox or
+ * width/height, and render as a 300x150 crop. Give them a viewBox from the
+ * drawing's own bounding box first.
+ */
+async function fitSvg(page, svg) {
+  if (/<svg[^>]*\sviewBox=/i.test(svg)) return svg;
+  try {
+    await page.setContent(`<!doctype html><body style="margin:0">${svg}</body>`);
+    const box = await page.evaluate(() => {
+      const el = document.querySelector('svg');
+      el.setAttribute('width', '4000');
+      el.setAttribute('height', '4000');
+      const b = el.getBBox();
+      return b.width && b.height ? [b.x, b.y, b.width, b.height] : null;
+    });
+    if (!box) return svg;
+    return svg.replace(/<svg/i, `<svg viewBox="${box.map((n) => Math.round(n * 100) / 100).join(' ')}"`);
+  } catch {
+    return svg;
+  }
+}
+
 /** Render an SVG to a transparent PNG about MAX_H*2 pixels tall. */
 async function rasterizeSvg(svg) {
   const browser = await getBrowser();
   if (!browser) return null;
   const page = await browser.newPage({ deviceScaleFactor: 2 });
   try {
-    const html = `<!doctype html><style>html,body{margin:0;background:transparent}img{display:block;height:${MAX_H}px;width:auto;max-width:${MAX_W * 2}px}</style><img src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}">`;
+    const html = `<!doctype html><style>html,body{margin:0;background:transparent}img{display:block;height:${MAX_H}px;width:auto;max-width:${MAX_W * 2}px}</style><img src="data:image/svg+xml;base64,${Buffer.from(await fitSvg(page, svg)).toString('base64')}">`;
     await page.setContent(html);
     const img = page.locator('img');
     await img.waitFor({ timeout: 5000 });

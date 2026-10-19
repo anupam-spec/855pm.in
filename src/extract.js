@@ -72,7 +72,10 @@ function inlineSvg($, el) {
   svg.find('use').each((_, u) => {
     const ref = ($(u).attr('href') || $(u).attr('xlink:href') || '').replace(/^#/, '');
     const sym = ref && $(`[id="${ref}"]`).first();
-    if (sym && sym.length) $(u).replaceWith(`<g>${sym.html()}</g>`);
+    if (!sym || !sym.length) return;
+    // A <symbol> carries the drawing's viewBox; the <svg> using it is often sized only by CSS.
+    if (!svg.attr('viewBox') && sym.attr('viewBox') && svg.find('use').length === 1) svg.attr('viewBox', sym.attr('viewBox'));
+    $(u).replaceWith(`<g>${sym.html()}</g>`);
   });
   const xml = $.html(svg);
   return xml.length < 200000 ? `data:image/svg+xml;base64,${Buffer.from(xml).toString('base64')}` : '';

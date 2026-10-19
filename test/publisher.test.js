@@ -209,3 +209,15 @@ test('wide logos keep their shape in the masthead', () => {
     assert.match(img, /height:23px;width:240px/, f.id);
   }
 });
+
+test('inline SVG logo drawn from a <symbol> keeps the symbol viewBox', () => {
+  const cheerio = require('cheerio');
+  const { extractPublication } = require('../src/extract');
+  const $ = cheerio.load('<html><body><svg style="display:none"><symbol id="logo" viewBox="0 0 800 277"><path d="M0 0h800v277H0z"/></symbol></svg><nav><div class="site-logo"><a href="https://news.example.com/" title="Example"><svg class="logo"><use href="#logo"></use></svg></a></div></nav></body></html>');
+  const pub = extractPublication($, 'https://news.example.com/');
+  const inline = pub.logoCandidates.find((c) => c.startsWith('data:image/svg+xml;base64,'));
+  assert.ok(inline, JSON.stringify(pub.logoCandidates));
+  const xml = Buffer.from(inline.split(',')[1], 'base64').toString();
+  assert.match(xml, /<svg[^>]*viewBox="0 0 800 277"/);
+  assert.match(xml, /<path d="M0 0h800v277H0z"/);
+});
